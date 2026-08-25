@@ -5,20 +5,20 @@ from __future__ import annotations
 import logging
 
 from busylib import BusyBarDevices
-from zeroconf.asyncio import AsyncZeroconf
+from zeroconf import InterfaceChoice
 
 from homeassistant.components import zeroconf as ha_zeroconf
 from homeassistant.core import HomeAssistant
 
 
-DISCOVERY_TIMEOUT = 2.5
+DISCOVERY_TIMEOUT = 10.0
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_discover_busy(hass: HomeAssistant):
-    """Discover BUSY Bars using Home Assistant's shared Zeroconf instance."""
-    shared_zeroconf = await ha_zeroconf.async_get_instance(hass)
-    async_zeroconf = AsyncZeroconf(zc=shared_zeroconf)
+    """Discover BUSY Bars through Home Assistant's shared Zeroconf instance."""
+    async_zeroconf = await ha_zeroconf.async_get_async_instance(hass)
+    await async_zeroconf.zeroconf.async_update_interfaces(InterfaceChoice.All)
     devices = await BusyBarDevices.async_discover(
         DISCOVERY_TIMEOUT,
         async_zeroconf,
