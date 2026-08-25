@@ -1,5 +1,6 @@
 """Config flow for the BUSY Bar integration."""
 
+from functools import partial
 import logging
 from typing import Any
 
@@ -152,7 +153,9 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         else:
             _LOGGER.debug("step \"mint_token\" (without input)")
 
-        client = self.device.to_async_client(token=password)
+        client = await self.hass.async_add_executor_job(
+            partial(self.device.to_async_client, token=password)
+        )
 
         try:
             _LOGGER.debug("step \"mint_token\": minting token")

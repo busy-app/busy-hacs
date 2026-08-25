@@ -1,5 +1,6 @@
 """The BUSY Bar integration."""
 
+from functools import partial
 import logging
 
 from homeassistant.const import Platform
@@ -35,7 +36,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: BusyBarConfigEntry) -> b
     if not device:
         raise ConfigEntryNotReady(translation_key="device_unreachable")
 
-    client = device.to_async_client(token=token)
+    client = await hass.async_add_executor_job(partial(device.to_async_client, token=token))
     _LOGGER.debug(f"async_setup_entry: confirming HTTP reachability of device_id=\"{device_id}\" at {client.base_url}")
     try:
         await client.access()
