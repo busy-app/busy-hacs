@@ -4,14 +4,13 @@ import logging
 
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.components import zeroconf
 from homeassistant.const import CONF_DEVICE_ID, CONF_TOKEN
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 
-from busylib import BusyBarDevices
 from busylib.exceptions import BusyBarError
 
 from .coordinator import BusyBarConfigEntry
+from .discovery import async_discover_busy
 
 _PLATFORMS: list[Platform] = [Platform.LIGHT]
 _LOGGER = logging.getLogger(__name__)
@@ -25,8 +24,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: BusyBarConfigEntry) -> b
 
     _LOGGER.debug(f"async_setup_entry: discovering device with id=\"{device_id}\"")
 
-    zc = await zeroconf.async_get_instance(hass)
-    devices = await BusyBarDevices.discover(1.5, zc)
+    devices = await async_discover_busy(hass)
     device = next((d for d in devices if d.device_id == device_id), None)
     if not device:
         raise ConfigEntryNotReady(translation_key="device_unreachable")
@@ -41,7 +39,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: BusyBarConfigEntry) -> b
     _LOGGER.debug(f"async_setup_entry: validating access token for device_id=\"{device_id}\"")
     client = device.to_async_client(token=token)
     try:
-        await client.tokens_list()
+        await client.access_tokens_list()
     except BusyBarError:
         raise ConfigEntryAuthFailed(translation_key="access_unauthorized")
     
