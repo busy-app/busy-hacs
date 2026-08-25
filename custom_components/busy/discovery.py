@@ -5,9 +5,7 @@ from __future__ import annotations
 import logging
 
 from busylib import BusyBarDevices
-from zeroconf import InterfaceChoice
 
-from homeassistant.components import zeroconf as ha_zeroconf
 from homeassistant.core import HomeAssistant
 
 
@@ -16,13 +14,16 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_discover_busy(hass: HomeAssistant):
-    """Discover BUSY Bars through Home Assistant's shared Zeroconf instance."""
-    async_zeroconf = await ha_zeroconf.async_get_async_instance(hass)
-    await async_zeroconf.zeroconf.async_update_interfaces(InterfaceChoice.All)
-    devices = await BusyBarDevices.async_discover(
-        DISCOVERY_TIMEOUT,
-        async_zeroconf,
-    )
+    """Discover BUSY Bars, including ones reachable only over wlan0/USB.
+
+    A bar plugged in over USB or joined on a secondary Wi-Fi interface may
+    not be visible on Home Assistant's shared Zeroconf instance, whose
+    interfaces follow the user's network settings. Rather than widening
+    that shared, process-wide instance (which every other Zeroconf-using
+    integration relies on) let busylib open and close its own short-lived
+    instance bound to every interface, scoped to this discovery call only.
+    """
+    devices = await BusyBarDevices.async_discover(DISCOVERY_TIMEOUT)
     _LOGGER.debug(
         "Discovered BUSY Bars: %s",
         [

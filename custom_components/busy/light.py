@@ -9,10 +9,7 @@ import logging
 from busylib import AsyncBusyBar
 
 from homeassistant.components.light import LightEntity, ColorMode
-from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -29,21 +26,6 @@ async def async_setup_entry(
 ) -> None:
     client, device_id = config_entry.runtime_data
     name = (await client.name()).name
-    device = dr.async_get(hass).async_get_or_create(
-        config_entry_id=config_entry.entry_id,
-        identifiers={(DOMAIN, device_id)},
-        name=name,
-        manufacturer="BUSY",
-        model="BUSY Bar",
-    )
-    entity_registry = er.async_get(hass)
-    entity_id = entity_registry.async_get_entity_id(
-        Platform.LIGHT,
-        DOMAIN,
-        f"{device_id}_light",
-    )
-    if entity_id:
-        entity_registry.async_update_entity(entity_id, device_id=device.id)
     async_add_entities([BusybarLight(client, name, device_id)])
 
 class BusybarLight(LightEntity):
