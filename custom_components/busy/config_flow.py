@@ -7,14 +7,11 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_DEVICE_ID, CONF_TOKEN
-from homeassistant.components import zeroconf
 
-from busylib import BusyBarDevices
 from busylib.exceptions import BusyBarError
 
-import logging
-
 from .const import DOMAIN
+from .discovery import async_discover_busy
 
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel("DEBUG")
@@ -50,6 +47,13 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         _LOGGER.debug("step \"user\" -> \"find_devices\"")
         return await self.async_step_find_devices()
 
+    async def async_step_zeroconf(
+        self, discovery_info: Any
+    ) -> ConfigFlowResult:
+        """Handle a BUSY Bar discovered by Home Assistant Zeroconf."""
+        _LOGGER.debug("zeroconf discovery: %s", discovery_info)
+        return await self.async_step_find_devices()
+
     #
     #            +----------------+
     # "user" --> | "find_devices" | --x---> "select_device"
@@ -60,8 +64,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         _LOGGER.debug("step \"find_devices\": discovering devices")
-        zc = await zeroconf.async_get_instance(self.hass)
-        self.devices = await BusyBarDevices.discover(1.5, zc)
+        self.devices = await async_discover_busy(self.hass)
 
         if len(self.devices) > 1:
             _LOGGER.debug("step \"find_devices\": more than 1 device found")
@@ -151,7 +154,9 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
 
         try:
             _LOGGER.debug("step \"mint_token\": minting token")
-            token_info = await client.token_mint(self.hass.config.location_name)
+            token_info = await client.access_token_mint(
+                self.hass.config.location_name
+            )
             _LOGGER.debug(f"step \"mint_token\": acquired token with short_id=\"{token_info.short_id}\"")
             token = token_info.token
         except BusyBarError:
