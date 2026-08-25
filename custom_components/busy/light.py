@@ -20,6 +20,10 @@ from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
+# Entities are driven by BusyBarCoordinator's single shared poll, not their
+# own async_update, so there's no per-entity request pressure to limit.
+PARALLEL_UPDATES = 0
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: BusyBarConfigEntry,
@@ -33,10 +37,17 @@ async def async_setup_entry(
     async_add_entities([BusybarLight(coordinator, name)])
 
 class BusybarLight(CoordinatorEntity[BusyBarCoordinator], LightEntity):
+    # Entities are named as "<device name> <entity name>" once has_entity_name
+    # is set, instead of duplicating the device's own name - this is the
+    # convention every entity this integration adds later (buttons, sensors,
+    # selects) needs to follow, so it's set here before more than one entity
+    # exists to name.
+    _attr_has_entity_name = True
+    _attr_name = "Smart home switch"
+
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
         super().__init__(coordinator)
         self._client: AsyncBusyBar = coordinator.client
-        self._name = name
         self._attr_unique_id = f"{coordinator.device_id}_light"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.device_id)},
@@ -44,10 +55,6 @@ class BusybarLight(CoordinatorEntity[BusyBarCoordinator], LightEntity):
             manufacturer="BUSY",
             model="BUSY Bar",
         )
-
-    @property
-    def name(self) -> str:
-        return self._name
 
     @property
     def is_on(self) -> bool | None:
