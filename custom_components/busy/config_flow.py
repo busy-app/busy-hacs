@@ -53,8 +53,38 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle a BUSY Bar discovered by Home Assistant Zeroconf."""
         _LOGGER.debug("zeroconf discovery: %s", discovery_info)
         device_id = discovery_info.name.split(".")[0]
+        # discovery_info.name is the raw mDNS instance name (e.g.
+        # "0cfa22201131._busybar._tcp.local.") - not something to show a
+        # user. The bar's actual name is in its TXT record, the same place
+        # busylib's own device parsing reads it from.
+        device_name = discovery_info.properties.get("name") or "BUSY Bar"
         await self.async_set_unique_id(device_id)
         self._abort_if_unique_id_configured()
+        self.context["title_placeholders"] = {"name": device_name}
+        return await self.async_step_zeroconf_confirm()
+
+    #
+    #                     +------------------+
+    # "zeroconf" --x-x--> | "zeroconf_confirm" | --> "find_devices"
+    #                     +------------------+
+    #
+    # A bar re-announces itself over mDNS periodically. Without this pause,
+    # a second announcement arriving while the first one is still busy
+    # scanning (find_devices takes ~10s) would start a second flow for the
+    # same unique_id and get aborted as "already_in_progress". Stopping here
+    # for user confirmation keeps the flow parked on one instance that
+    # repeat announcements just refresh, instead of racing each other.
+    async def async_step_zeroconf_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is None:
+            _LOGGER.debug("step \"zeroconf_confirm\" (no input)")
+            return self.async_show_form(
+                step_id="zeroconf_confirm",
+                description_placeholders=self.context["title_placeholders"],
+            )
+
+        _LOGGER.debug("step \"zeroconf_confirm\" -> \"find_devices\"")
         return await self.async_step_find_devices()
 
     #
@@ -69,15 +99,15 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         _LOGGER.debug("step \"find_devices\": discovering devices")
         self.devices = await async_discover_busy(self.hass)
 
-        if len(self.devices) > 1:
-            _LOGGER.debug("step \"find_devices\": more than 1 device found")
+        if self.devices:
+            _LOGGER.debug("step \"find_devices\": %d device(s) found", len(self.devices))
             _LOGGER.debug("step \"find_devices\" -> \"select_device\"")
+            # Always show the picker, even for a single device: silently
+            # locking onto whichever one the scan happened to find first
+            # gives the user no chance to notice a wrong or unexpected
+            # device (e.g. a neighbor's bar, or the "other" one when more
+            # than one exists but only one answered in time).
             return await self.async_step_select_device()
-        elif len(self.devices) == 1:
-            _LOGGER.debug("step \"find_devices\": exactly 1 device found")
-            _LOGGER.debug("step \"find_devices\" -> \"select_device\"")
-            device = self.devices[0]
-            return await self.async_step_select_device({"device": device.name})
         else:
             _LOGGER.debug("step \"find_devices\" -> \"no_devices\"")
             return await self.async_step_no_devices()
@@ -117,11 +147,24 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
                 step_id="select_device",
                 data_schema=SCHEMA,
             )
-        
+
         _LOGGER.debug("step \"select_device\" (with input)")
         dev_name = user_input["device"]
         device = next(dev for dev in self.devices if dev.name == dev_name)
         self.device = device
+        # Another flow for this same device may already be alive - a
+        # zeroconf-triggered one sitting unconfirmed in "Discovered" (the
+        # bar re-announces itself over mDNS, so one is created readily and
+        # never expires on its own), or this very flow having already set
+        # this same unique_id back in async_step_zeroconf. Either way, this
+        # flow is the one the user is actively driving to completion right
+        # now, so it should win: discard any other in-progress flow for the
+        # same unique_id before claiming it, instead of aborting ourselves
+        # with already_in_progress.
+        for progress in self._async_in_progress(
+            include_uninitialized=True, match_context={"unique_id": device.device_id}
+        ):
+            self.hass.config_entries.flow.async_abort(progress["flow_id"])
         await self.async_set_unique_id(device.device_id)
         self._abort_if_unique_id_configured()
 
