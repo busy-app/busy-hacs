@@ -53,9 +53,14 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle a BUSY Bar discovered by Home Assistant Zeroconf."""
         _LOGGER.debug("zeroconf discovery: %s", discovery_info)
         device_id = discovery_info.name.split(".")[0]
+        # discovery_info.name is the raw mDNS instance name (e.g.
+        # "0cfa22201131._busybar._tcp.local.") - not something to show a
+        # user. The bar's actual name is in its TXT record, the same place
+        # busylib's own device parsing reads it from.
+        device_name = discovery_info.properties.get("name") or "BUSY Bar"
         await self.async_set_unique_id(device_id)
         self._abort_if_unique_id_configured()
-        self.context["title_placeholders"] = {"name": discovery_info.name}
+        self.context["title_placeholders"] = {"name": device_name}
         return await self.async_step_zeroconf_confirm()
 
     #
@@ -142,7 +147,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
                 step_id="select_device",
                 data_schema=SCHEMA,
             )
-        
+
         _LOGGER.debug("step \"select_device\" (with input)")
         dev_name = user_input["device"]
         device = next(dev for dev in self.devices if dev.name == dev_name)
