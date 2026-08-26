@@ -55,6 +55,31 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         device_id = discovery_info.name.split(".")[0]
         await self.async_set_unique_id(device_id)
         self._abort_if_unique_id_configured()
+        self.context["title_placeholders"] = {"name": discovery_info.name}
+        return await self.async_step_zeroconf_confirm()
+
+    #
+    #                     +------------------+
+    # "zeroconf" --x-x--> | "zeroconf_confirm" | --> "find_devices"
+    #                     +------------------+
+    #
+    # A bar re-announces itself over mDNS periodically. Without this pause,
+    # a second announcement arriving while the first one is still busy
+    # scanning (find_devices takes ~10s) would start a second flow for the
+    # same unique_id and get aborted as "already_in_progress". Stopping here
+    # for user confirmation keeps the flow parked on one instance that
+    # repeat announcements just refresh, instead of racing each other.
+    async def async_step_zeroconf_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is None:
+            _LOGGER.debug("step \"zeroconf_confirm\" (no input)")
+            return self.async_show_form(
+                step_id="zeroconf_confirm",
+                description_placeholders=self.context["title_placeholders"],
+            )
+
+        _LOGGER.debug("step \"zeroconf_confirm\" -> \"find_devices\"")
         return await self.async_step_find_devices()
 
     #

@@ -6,6 +6,9 @@
     },
     "flow_title": "{name}",
     "step": {
+      "zeroconf_confirm": {
+        "description": "Do you want to set up {name}?"
+      },
       "mint_token": {
         "data": {
           "password": "Wi-Fi access key"
