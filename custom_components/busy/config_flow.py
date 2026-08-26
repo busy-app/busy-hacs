@@ -147,7 +147,15 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         dev_name = user_input["device"]
         device = next(dev for dev in self.devices if dev.name == dev_name)
         self.device = device
-        await self.async_set_unique_id(device.device_id)
+        # raise_on_progress=False: a zeroconf-sourced flow already set this
+        # same unique_id in async_step_zeroconf. By the time the user
+        # confirms and find_devices' ~10s scan finishes, a repeat mDNS
+        # announcement may well have spawned another in-progress flow for
+        # the same bar - which would otherwise make this flow abort itself
+        # here as "already_in_progress" for a device it already owns.
+        # _abort_if_unique_id_configured still catches an actually-configured
+        # device.
+        await self.async_set_unique_id(device.device_id, raise_on_progress=False)
         self._abort_if_unique_id_configured()
 
         _LOGGER.debug("step \"select_device\" -> \"mint_token\"")
