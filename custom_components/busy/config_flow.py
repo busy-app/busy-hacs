@@ -1,5 +1,6 @@
 """Config flow for the BUSY Bar integration."""
 
+from functools import partial
 import logging
 from typing import Any
 
@@ -14,7 +15,6 @@ from .const import DOMAIN
 from .discovery import async_discover_busy
 
 _LOGGER = logging.getLogger(__name__)
-_LOGGER.setLevel("DEBUG")
 
 class ConfigFlow(ConfigFlow, domain=DOMAIN):
     """
@@ -52,6 +52,9 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Handle a BUSY Bar discovered by Home Assistant Zeroconf."""
         _LOGGER.debug("zeroconf discovery: %s", discovery_info)
+        device_id = discovery_info.name.split(".")[0]
+        await self.async_set_unique_id(device_id)
+        self._abort_if_unique_id_configured()
         return await self.async_step_find_devices()
 
     #
@@ -139,7 +142,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         SCHEMA = vol.Schema(
             {
-                vol.Required("password", default=""): vol.All(str, vol.Length(min=4, max=10))
+                vol.Required("password", default=""): vol.All(str, vol.Length(min=4, max=128))
             }
         )
 
@@ -150,7 +153,9 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         else:
             _LOGGER.debug("step \"mint_token\" (without input)")
 
-        client = self.device.to_async_client(token=password)
+        client = await self.hass.async_add_executor_job(
+            partial(self.device.to_async_client, token=password)
+        )
 
         try:
             _LOGGER.debug("step \"mint_token\": minting token")

@@ -3,44 +3,62 @@
 from __future__ import annotations
 from typing import Any, override
 
-import asyncio
 import logging
 
 from busylib import AsyncBusyBar
+from busylib.exceptions import BusyBarError
 
 from homeassistant.components.light import LightEntity, ColorMode
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import PlatformNotReady
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .coordinator import BusyBarConfigEntry
+from .const import DOMAIN
+from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
 
 _LOGGER = logging.getLogger(__name__)
-_LOGGER.setLevel("DEBUG")
+
+# Entities are driven by BusyBarCoordinator's single shared poll, not their
+# own async_update, so there's no per-entity request pressure to limit.
+PARALLEL_UPDATES = 0
 
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: BusyBarConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    client, device_id = config_entry.runtime_data
-    name = (await client.name()).name
-    async_add_entities([BusybarLight(client, name, device_id)])
+    coordinator = config_entry.runtime_data
+    try:
+        name = (await coordinator.client.name()).name
+    except BusyBarError as err:
+        raise PlatformNotReady(f"BUSY Bar {coordinator.device_id} is unreachable") from err
+    async_add_entities([BusybarLight(coordinator, name)])
 
-class BusybarLight(LightEntity):
-    def __init__(self, client: AsyncBusyBar, name: str, device_id: str) -> None:
-        self._client = client
-        self._name = name
-        self._attr_unique_id = f"{device_id}_light"
-        self._state = None
+class BusybarLight(CoordinatorEntity[BusyBarCoordinator], LightEntity):
+    # Entities are named as "<device name> <entity name>" once has_entity_name
+    # is set, instead of duplicating the device's own name - this is the
+    # convention every entity this integration adds later (buttons, sensors,
+    # selects) needs to follow, so it's set here before more than one entity
+    # exists to name.
+    _attr_has_entity_name = True
+    _attr_name = "Smart home switch"
 
-    @property
-    def name(self) -> str:
-        return self._name
+    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
+        super().__init__(coordinator)
+        self._client: AsyncBusyBar = coordinator.client
+        self._attr_unique_id = f"{coordinator.device_id}_light"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, coordinator.device_id)},
+            name=name,
+            manufacturer="BUSY",
+            model="BUSY Bar",
+        )
 
     @property
     def is_on(self) -> bool | None:
-        _LOGGER.debug(f"is_on => {self._state}")
-        return self._state
+        return self.coordinator.data
 
     @property
     @override
@@ -53,14 +71,9 @@ class BusybarLight(LightEntity):
         return {ColorMode.ONOFF}
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        _LOGGER.debug(f"turn_on")
         await self._client.smart_home_switch_set(True)
+        await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        _LOGGER.debug(f"turn_off")
         await self._client.smart_home_switch_set(False)
-
-    async def async_update(self) -> None:
-        _LOGGER.debug(f"async_update")
-        await asyncio.sleep(0.5) # allow internal Matter shenanigans to propagate the update
-        self._state = (await self._client.smart_home_switch()).state
+        await self.coordinator.async_request_refresh()
