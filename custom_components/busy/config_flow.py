@@ -99,15 +99,15 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         _LOGGER.debug("step \"find_devices\": discovering devices")
         self.devices = await async_discover_busy(self.hass)
 
-        if len(self.devices) > 1:
-            _LOGGER.debug("step \"find_devices\": more than 1 device found")
+        if self.devices:
+            _LOGGER.debug("step \"find_devices\": %d device(s) found", len(self.devices))
             _LOGGER.debug("step \"find_devices\" -> \"select_device\"")
+            # Always show the picker, even for a single device: silently
+            # locking onto whichever one the scan happened to find first
+            # gives the user no chance to notice a wrong or unexpected
+            # device (e.g. a neighbor's bar, or the "other" one when more
+            # than one exists but only one answered in time).
             return await self.async_step_select_device()
-        elif len(self.devices) == 1:
-            _LOGGER.debug("step \"find_devices\": exactly 1 device found")
-            _LOGGER.debug("step \"find_devices\" -> \"select_device\"")
-            device = self.devices[0]
-            return await self.async_step_select_device({"device": device.name})
         else:
             _LOGGER.debug("step \"find_devices\" -> \"no_devices\"")
             return await self.async_step_no_devices()
@@ -152,17 +152,20 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         dev_name = user_input["device"]
         device = next(dev for dev in self.devices if dev.name == dev_name)
         self.device = device
-        # A zeroconf-sourced flow already set this same unique_id in
-        # async_step_zeroconf; re-affirming it here would raise
-        # already_in_progress on ourselves if a repeat mDNS announcement
-        # spawned a bystander flow while find_devices' ~10s scan ran. Only
-        # skip the call when it's truly redundant (same id, same flow) -
-        # a *different* flow (e.g. manually started via "Add device")
-        # racing to claim this device must still be blocked here, or it
-        # would mint its own access token and invalidate the one this flow
-        # just obtained.
-        if self.unique_id != device.device_id:
-            await self.async_set_unique_id(device.device_id)
+        # Another flow for this same device may already be alive - a
+        # zeroconf-triggered one sitting unconfirmed in "Discovered" (the
+        # bar re-announces itself over mDNS, so one is created readily and
+        # never expires on its own), or this very flow having already set
+        # this same unique_id back in async_step_zeroconf. Either way, this
+        # flow is the one the user is actively driving to completion right
+        # now, so it should win: discard any other in-progress flow for the
+        # same unique_id before claiming it, instead of aborting ourselves
+        # with already_in_progress.
+        for progress in self._async_in_progress(
+            include_uninitialized=True, match_context={"unique_id": device.device_id}
+        ):
+            self.hass.config_entries.flow.async_abort(progress["flow_id"])
+        await self.async_set_unique_id(device.device_id)
         self._abort_if_unique_id_configured()
 
         _LOGGER.debug("step \"select_device\" -> \"mint_token\"")
