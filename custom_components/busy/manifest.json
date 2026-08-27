@@ -13,7 +13,7 @@
   "quality_scale": "bronze",
   "version": "0.1.0",
   "requirements": [
-    "busylib>2,<3"
+    "busylib>2.0.1,<3"
   ],
   "ssdp": [],
   "zeroconf": [
