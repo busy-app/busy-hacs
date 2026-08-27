@@ -13,10 +13,13 @@
   "quality_scale": "bronze",
   "version": "0.1.0",
   "requirements": [
-    "busylib==2.0.0"
+    "busylib>2.0.1,<3"
   ],
   "ssdp": [],
   "zeroconf": [
-    "_busybar._tcp.local."
+    {
+      "type": "_http._tcp.local.",
+      "name": "busybar-*"
+    }
   ]
 }
