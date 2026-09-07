@@ -5,6 +5,7 @@ import logging
 
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.const import CONF_DEVICE_ID, CONF_TOKEN
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
@@ -14,8 +15,6 @@ from homeassistant.exceptions import (
 
 from busylib.exceptions import BusyBarError
 
-from homeassistant.helpers.typing import ConfigType
-
 from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
 from .discovery import async_discover_busy
 from .services_setup import async_register_services
@@ -23,11 +22,14 @@ from .services_setup import async_register_services
 _PLATFORMS: list[Platform] = [Platform.LIGHT]
 _LOGGER = logging.getLogger(__name__)
 
-# Actions belong to the integration, not to one bar, so they are registered
-# here rather than per config entry: an automation calling one then validates
-# as soon as the integration is loaded, even before a device is reachable.
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the BUSY Bar integration."""
+    """Register the integration's actions.
+
+    Done here rather than per config entry so an automation referencing an
+    action validates as soon as the integration is loaded, whether or not a
+    bar has been added yet - and so the same action is not registered again
+    for every bar.
+    """
     async_register_services(hass)
     return True
 

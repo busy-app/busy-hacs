@@ -6,6 +6,11 @@ it is loaded so an automation referencing one validates even while the
 device is unreachable. This is the `action-setup` rule in the integration
 quality scale, and doing it from `async_setup_entry` would also register the
 same action again for every bar that gets added.
+
+Nothing here knows how a notification is drawn. Placing elements on a 72x16
+panel depends on the font, on the icon's width and on what the firmware can
+draw, and only busylib knows the device's version - so the layout lives in
+`busylib.features.notification` and this module collects fields and calls it.
 """
 
 from __future__ import annotations
@@ -21,39 +26,43 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv, device_registry as dr
 
 from busylib import AsyncBusyBar
-from busylib.exceptions import BusyBarError
+from busylib.exceptions import BusyBarError, BusyBarFeatureUnavailableError
+from busylib.features import notification
 
 from .const import (
     APPLICATION_NAME,
     DEFAULT_DURATION,
-    DEFAULT_FONT,
     DOMAIN,
     MAX_DURATION,
-    ONE_LINE_FONTS,
-    PRIORITY_DEFAULT,
-    PRIORITY_INTERRUPT,
     SERVICE_NOTIFY,
-    STOCK_SOUNDS,
-    TWO_LINE_FONTS,
 )
-from .notify import build_elements
 
 _LOGGER = logging.getLogger(__name__)
 
-_COLOUR = vol.All([vol.All(vol.Coerce(int), vol.Range(min=0, max=255))], vol.Length(3, 3))
+_COLOUR = vol.All(
+    [vol.All(vol.Coerce(int), vol.Range(min=0, max=255))], vol.Length(3, 3)
+)
 
+# The icon, sound and font choices are validated against busylib's own
+# catalogues rather than a copy kept here, so a name that services.yaml
+# offers but the library does not know fails with a readable error instead
+# of a 400 from the device.
 _NOTIFY_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_DEVICE_ID): vol.All(cv.ensure_list, [cv.string]),
         vol.Required("line_1"): cv.string,
         vol.Optional("line_2"): cv.string,
-        vol.Optional("icon", default="none"): cv.string,
-        vol.Optional("sound", default="none"): cv.string,
+        vol.Optional("icon"): vol.Any("none", vol.In(sorted(notification.STOCK_ICONS))),
+        vol.Optional("sound"): vol.Any(
+            "none", vol.In(sorted(notification.STOCK_SOUNDS))
+        ),
         vol.Optional("duration", default=DEFAULT_DURATION): vol.All(
             vol.Coerce(int), vol.Range(min=0, max=MAX_DURATION)
         ),
         vol.Optional("interrupt", default=False): cv.boolean,
-        vol.Optional("font", default=DEFAULT_FONT): vol.In(ONE_LINE_FONTS),
+        vol.Optional("font", default=notification.DEFAULT_FONT): vol.In(
+            notification.ONE_LINE_FONTS
+        ),
         vol.Optional("line_1_color"): _COLOUR,
         vol.Optional("line_2_color"): _COLOUR,
         vol.Optional("background_color"): _COLOUR,
@@ -88,52 +97,64 @@ def _clients(hass: HomeAssistant, device_ids: list[str]) -> list[AsyncBusyBar]:
     return clients
 
 
+def _optional(value: str | None) -> str | None:
+    """
+    Treat the dropdowns' "none" as nothing chosen.
+    """
+    return None if value in (None, "none") else value
+
+
 async def _async_notify(call: ServiceCall) -> None:
     """
     Draw a notification on every targeted bar.
     """
     data: dict[str, Any] = dict(call.data)
-    line_2 = data.get("line_2")
-    font = data["font"]
-
-    # The two tallest fonts do not leave 16px for a second line. Refusing is
-    # better than quietly substituting a font the caller did not ask for.
-    if line_2 and font not in TWO_LINE_FONTS:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="font_too_tall_for_two_lines",
-            translation_placeholders={"font": font},
-        )
-
-    payload = build_elements(
-        line_1=data["line_1"],
-        line_2=line_2,
-        icon=data.get("icon"),
-        font=font,
-        line_1_color=data.get("line_1_color"),
-        line_2_color=data.get("line_2_color"),
-        background_color=data.get("background_color"),
-        duration=data["duration"],
-        priority=PRIORITY_INTERRUPT if data["interrupt"] else PRIORITY_DEFAULT,
-    )
-
-    sound = data.get("sound")
-    stock_sound = STOCK_SOUNDS.get(sound) if sound and sound != "none" else None
 
     for client in _clients(call.hass, data[ATTR_DEVICE_ID]):
         try:
-            await client.display_draw(payload)
-            if stock_sound is not None:
-                # application_name is request context, not part of the play
-                # payload - the payload model forbids extra keys.
-                await client.audio_play(
-                    stock_path=stock_sound, application_name=APPLICATION_NAME
-                )
+            await notification.notify(
+                client,
+                data["line_1"],
+                line_2=data.get("line_2"),
+                icon=_optional(data.get("icon")),
+                sound=_optional(data.get("sound")),
+                font=data["font"],
+                line_1_color=data.get("line_1_color"),
+                line_2_color=data.get("line_2_color"),
+                background_color=data.get("background_color"),
+                duration=data["duration"],
+                priority=(
+                    notification.PRIORITY_INTERRUPT
+                    if data["interrupt"]
+                    else notification.PRIORITY_DEFAULT
+                ),
+                application_name=APPLICATION_NAME,
+            )
+        except BusyBarFeatureUnavailableError as err:
+            # Caught before BusyBarError, which it subclasses: the fix here
+            # is updating the bar's firmware, not retrying, so reporting it
+            # as a failed notification would send someone the wrong way.
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="feature_needs_newer_firmware",
+                translation_placeholders={
+                    "feature": err.feature,
+                    "required_version": err.required_version,
+                    "device_version": str(err.device_version),
+                },
+            ) from err
+        except ValueError as err:
+            # The library refuses a font the chosen layout cannot place, and
+            # names that are not in its catalogues. That is the caller's
+            # mistake, so it is a validation error rather than a failure -
+            # and it carries a translation key, since a raw string here
+            # would be the one message this action cannot translate.
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_notification",
+                translation_placeholders={"error": str(err)},
+            ) from err
         except BusyBarError as err:
-            # The call itself was valid, so this is a runtime failure rather
-            # than bad input: the bar may be unreachable, or it refused the
-            # drawing because something with a higher priority owns the
-            # display. ServiceValidationError would wrongly blame the caller.
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="notify_failed",
