@@ -14,11 +14,22 @@ from homeassistant.exceptions import (
 
 from busylib.exceptions import BusyBarError
 
+from homeassistant.helpers.typing import ConfigType
+
 from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
 from .discovery import async_discover_busy
+from .services_setup import async_register_services
 
 _PLATFORMS: list[Platform] = [Platform.LIGHT]
 _LOGGER = logging.getLogger(__name__)
+
+# Actions belong to the integration, not to one bar, so they are registered
+# here rather than per config entry: an automation calling one then validates
+# as soon as the integration is loaded, even before a device is reachable.
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the BUSY Bar integration."""
+    async_register_services(hass)
+    return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: BusyBarConfigEntry) -> bool:
     """Set up BUSY Bar from a config entry."""

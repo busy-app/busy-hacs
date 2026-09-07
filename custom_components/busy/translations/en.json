@@ -23,6 +23,66 @@
     },
     "access_unauthorized": {
       "message": "Device has been removed from this smart home. Please reconfigure the device."
+    },
+    "unknown_device": {
+      "message": "That device is not known to Home Assistant."
+    },
+    "device_not_loaded": {
+      "message": "That BUSY Bar is not set up or is not loaded yet."
+    },
+    "font_too_tall_for_two_lines": {
+      "message": "The {font} font is too tall for two lines. Use tiny, small, normal, condensed or bold, or send a single line."
+    },
+    "notify_failed": {
+      "message": "The bar refused the notification: {error}"
+    }
+  },
+  "services": {
+    "notify": {
+      "name": "Notify",
+      "description": "Shows a message on the bar's front display. Which layout is used follows from the fields you fill in: a second line, an icon or a background colour each change the drawing.",
+      "fields": {
+        "line_1": {
+          "name": "Line 1",
+          "description": "The message. On its own it is centred; long text scrolls."
+        },
+        "line_2": {
+          "name": "Line 2",
+          "description": "Adds a second line. Leave empty for a single centred line."
+        },
+        "icon": {
+          "name": "Icon",
+          "description": "A built-in icon shown on the left. The text shifts right to make room."
+        },
+        "sound": {
+          "name": "Sound",
+          "description": "A built-in sound played alongside the message."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "How long the message stays on screen, in seconds."
+        },
+        "interrupt": {
+          "name": "Interrupt",
+          "description": "Show the message even while a Busy session owns the display."
+        },
+        "font": {
+          "name": "Font",
+          "description": "Only the shorter fonts fit two lines; the two tallest are for a single line."
+        },
+        "line_1_color": {
+          "name": "Line 1 colour",
+          "description": "Colour of the first line."
+        },
+        "line_2_color": {
+          "name": "Line 2 colour",
+          "description": "Colour of the second line."
+        },
+        "background_color": {
+          "name": "Background colour",
+          "description": "Fills the panel behind the message."
+        }
+      }
     }
   }
 }
