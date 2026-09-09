@@ -58,7 +58,8 @@ class BusybarLight(CoordinatorEntity[BusyBarCoordinator], LightEntity):
 
     @property
     def is_on(self) -> bool | None:
-        return self.coordinator.data
+        data = self.coordinator.data
+        return None if data is None else data.smart_home
 
     @property
     @override

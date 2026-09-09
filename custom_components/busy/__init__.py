@@ -19,7 +19,11 @@ from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
 from .discovery import async_discover_busy
 from .services_setup import async_register_services
 
-_PLATFORMS: list[Platform] = [Platform.LIGHT]
+_PLATFORMS: list[Platform] = [
+    Platform.BINARY_SENSOR,
+    Platform.LIGHT,
+    Platform.SENSOR,
+]
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -72,11 +76,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: BusyBarConfigEntry) -> b
         await client.aclose()
         raise
     entry.runtime_data = coordinator
+    # Entities that matter during a session are driven by the stream, so it
+    # starts before they do.
+    coordinator.start_stream()
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: BusyBarConfigEntry) -> bool:
     unloaded = await hass.config_entries.async_unload_platforms(entry, _PLATFORMS)
     if unloaded:
+        await entry.runtime_data.stop_stream()
         await entry.runtime_data.client.aclose()
     return unloaded
