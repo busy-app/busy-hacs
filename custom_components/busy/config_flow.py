@@ -9,6 +9,13 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_DEVICE_ID, CONF_TOKEN
 
+from busylib.devices import (
+    BUSYBAR_INSTANCE_NAME_PREFIX,
+    BUSYBAR_USB_SUBNET,
+    BusyBarAddress,
+    BusyBarAddressAffinity,
+    BusyBarDevice,
+)
 from busylib.exceptions import BusyBarError
 
 from .const import DOMAIN
@@ -16,21 +23,44 @@ from .discovery import async_discover_busy
 
 _LOGGER = logging.getLogger(__name__)
 
+
+def _announced_address(ip: str) -> BusyBarAddress:
+    """Classify one announced address the way busylib's discovery does.
+
+    busylib decides USB vs Wi-Fi from the address itself, since a bar
+    plugged into this machine answers on its own USB subnet. Mirroring the
+    rule here keeps a device built from an mDNS announcement equivalent to
+    one that came out of a busylib scan.
+    """
+    return BusyBarAddress(
+        ip_address=ip,
+        affinity=(
+            BusyBarAddressAffinity.OVER_USB
+            if ip.startswith(BUSYBAR_USB_SUBNET)
+            else BusyBarAddressAffinity.OVER_WIFI
+        ),
+    )
+
 class ConfigFlow(ConfigFlow, domain=DOMAIN):
     """
 
-    "user"                            "zeroconf", "reconfigure"
-     |                                          |
-     |                                          |
-     |                                          |
-     \                                          \ 
-      --> "find_devices" --x-> "select_device" --x-> "mint_token" ---x------
-                            \                   /                     \     \ 
-                            |                   \   password needed   /     |
-                            |                    --------------------       |
-                            |                                               |
-                            v                                               v
-                      "no_devices"                                        done
+    "user"                                     "zeroconf"
+     |                                             |
+     |                                             v
+     |                                    "zeroconf_confirm"
+     |                                             |
+     |                    no address announced <---+---> address known
+     |                                |                        |
+     v                                v                        |
+    "find_devices" --x-> "select_device" --x-> "mint_token" <---+
+     |                                          |       ^
+     v                                          |       | password needed
+    "no_devices"                                v       |
+                                              done      +--- (retry form)
+
+    A zeroconf discovery already names one bar and carries its address, so
+    it skips the scan and the picker entirely. Only a user-initiated flow -
+    or an announcement with no usable IPv4 address - goes through discovery.
 
     """
 
@@ -52,21 +82,42 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Handle a BUSY Bar discovered by Home Assistant Zeroconf."""
         _LOGGER.debug("zeroconf discovery: %s", discovery_info)
-        device_id = discovery_info.name.split(".")[0]
         # discovery_info.name is the raw mDNS instance name (e.g.
-        # "0cfa22201131._busybar._tcp.local.") - not something to show a
-        # user. The bar's actual name is in its TXT record, the same place
+        # "busybar-0cfa22201131._http._tcp.local.") - not something to show
+        # a user. The bar announces itself under the shared _http service
+        # behind a "busybar-" prefix, and busylib strips that prefix to form
+        # device_id; stripping it here too is what makes the unique_id set
+        # on this path the same one a user-driven flow sets from a scanned
+        # device. Without it the two never match, so an already-configured
+        # bar keeps being offered as a fresh discovery and the dedup in
+        # "select_device" never finds this flow.
+        instance_name = discovery_info.name.split(".")[0]
+        device_id = instance_name.removeprefix(BUSYBAR_INSTANCE_NAME_PREFIX)
+        # The bar's actual name is in its TXT record, the same place
         # busylib's own device parsing reads it from.
         device_name = discovery_info.properties.get("name") or "BUSY Bar"
         await self.async_set_unique_id(device_id)
         self._abort_if_unique_id_configured()
         self.context["title_placeholders"] = {"name": device_name}
+        # The announcement already carries the addresses needed to reach
+        # this one bar, so keep them rather than throwing them away and
+        # rediscovering. IPv4 only, matching what busylib collects.
+        addresses = discovery_info.ip_addresses or [discovery_info.ip_address]
+        self.device = BusyBarDevice(
+            name=device_name,
+            device_id=device_id,
+            addresses={
+                _announced_address(str(ip)) for ip in addresses if ip.version == 4
+            },
+        )
         return await self.async_step_zeroconf_confirm()
 
     #
-    #                     +------------------+
-    # "zeroconf" --x-x--> | "zeroconf_confirm" | --> "find_devices"
-    #                     +------------------+
+    #                       +--------------------+
+    # "zeroconf" --x-x----> | "zeroconf_confirm" | --x--> "mint_token"
+    #                       +--------------------+    \
+    #                                                  --> "find_devices"
+    #                                                      (no usable address)
     #
     # A bar re-announces itself over mDNS periodically. Without this pause,
     # a second announcement arriving while the first one is still busy
@@ -74,6 +125,12 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
     # same unique_id and get aborted as "already_in_progress". Stopping here
     # for user confirmation keeps the flow parked on one instance that
     # repeat announcements just refresh, instead of racing each other.
+    #
+    # Confirming goes straight to minting a token. The user has already said
+    # which bar they want by picking this discovery, and the announcement
+    # carried its address, so a second 10s scan followed by a picker listing
+    # every bar on the network would discard a choice already made and ask
+    # for it again.
     async def async_step_zeroconf_confirm(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -84,8 +141,17 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
                 description_placeholders=self.context["title_placeholders"],
             )
 
-        _LOGGER.debug("step \"zeroconf_confirm\" -> \"find_devices\"")
-        return await self.async_step_find_devices()
+        # An announcement carrying no IPv4 address leaves nothing to talk
+        # to, so fall back to scanning rather than failing on a client that
+        # has no address to build from.
+        if self.device.get_address() is None:
+            _LOGGER.debug(
+                "step \"zeroconf_confirm\" -> \"find_devices\" (no address announced)"
+            )
+            return await self.async_step_find_devices()
+
+        _LOGGER.debug("step \"zeroconf_confirm\" -> \"mint_token\"")
+        return await self.async_step_mint_token()
 
     #
     #            +----------------+
