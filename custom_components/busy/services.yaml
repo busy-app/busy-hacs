@@ -44,10 +44,6 @@ notify:
           min: 0
           max: 120
           unit_of_measurement: seconds
-    interrupt:
-      default: false
-      selector:
-        boolean:
     appearance:
       collapsed: true
       fields:

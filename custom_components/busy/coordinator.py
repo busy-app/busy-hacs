@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import timedelta
 import logging
@@ -21,15 +22,22 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 _LOGGER = logging.getLogger(__name__)
 
-# Only the smart-home switch is polled: the bar pushes timer, power and Wi-Fi
-# changes over /api/status/ws, but not this one, so it needs asking for. The
-# interval is what it is because nothing depends on it being prompt - the
-# entities people watch during a session are driven by the stream.
+# Three things are polled, because the bar has no push for them: the
+# smart-home switch, the configured brightness and the timezone. The
+# interval is what it is because nothing depends on any of them being
+# prompt - the entities people watch during a session are driven by the
+# stream.
 UPDATE_INTERVAL = timedelta(seconds=30)
 
 # The stream is dominated by screen frames - roughly thirty per timer change -
-# so entities are only told about updates that carried something they show.
-_INTERESTING = ("timer", "power", "wifi", "device_name")
+# so most entities are only told about updates that carried something they
+# show. Frames go to the screen entity instead, on their own throttle.
+_INTERESTING = ("timer", "power", "wifi", "device_name", "audio_volume")
+
+# The bar sends about ten frames a second. Refreshing an entity that often
+# would flood the state machine and the recorder for a picture nobody can
+# read that fast, so the screen is announced at most this often.
+_FRAME_INTERVAL = 1.0
 
 # How long to wait before reconnecting a dropped stream. Long enough not to
 # hammer a rebooting bar, short enough that a session change is not missed.
@@ -41,11 +49,18 @@ class BusyBarData:
     """
     Everything the entities read.
 
-    `snapshot` is kept up to date by the stream; `smart_home` by the poll.
+    `snapshot` is kept up to date by the stream; the rest by the poll.
+
+    `brightness` is the *configured* value - a number as a string, or
+    "auto" - and not the same thing as the brightness the stream reports,
+    which is what the panel is actually lit to at this moment and moves
+    with the ambient light.
     """
 
     snapshot: DeviceSnapshot
     smart_home: bool
+    brightness: str | None = None
+    timezone: str | None = None
 
 
 class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
@@ -63,6 +78,8 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
         self.client = client
         self.device_id = device_id
         self._stream: asyncio.Task[None] | None = None
+        self._frame_listeners: list[Callable[[], None]] = []
+        self._frame_announced = 0.0
 
     async def _async_update_data(self) -> BusyBarData:
         try:
@@ -70,15 +87,27 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
             # immediately after a write can still see the old value.
             await asyncio.sleep(0.5)
             switch = (await self.client.smart_home_switch()).state
+            brightness = (await self.client.display_brightness()).value
+            timezone = (await self.client.time_timezone_info()).name
         except BusyBarError as err:
             raise UpdateFailed(f"BUSY Bar {self.device_id} is unreachable") from err
 
         if self.data is not None:
             # The stream owns the snapshot; the poll must not undo its work.
-            return replace(self.data, smart_home=switch)
+            return replace(
+                self.data,
+                smart_home=switch,
+                brightness=brightness,
+                timezone=timezone,
+            )
 
         snapshot = await collect_device_snapshot(self.client)
-        return BusyBarData(snapshot=snapshot, smart_home=switch)
+        return BusyBarData(
+            snapshot=snapshot,
+            smart_home=switch,
+            brightness=brightness,
+            timezone=timezone,
+        )
 
     def start_stream(self) -> None:
         """
@@ -125,6 +154,32 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
                 )
             await asyncio.sleep(_RECONNECT_DELAY)
 
+    def add_frame_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
+        """
+        Be told when a new screen frame has arrived, at most once a second.
+
+        Returns a function that unsubscribes, for an entity to call when it
+        is removed.
+        """
+        self._frame_listeners.append(callback)
+
+        def remove() -> None:
+            if callback in self._frame_listeners:
+                self._frame_listeners.remove(callback)
+
+        return remove
+
+    def _announce_frame(self) -> None:
+        """
+        Tell the screen entity, unless it was told recently.
+        """
+        now = self.hass.loop.time()
+        if now - self._frame_announced < _FRAME_INTERVAL:
+            return
+        self._frame_announced = now
+        for callback in list(self._frame_listeners):
+            callback()
+
     def _apply(self, message: dict[str, object]) -> None:
         """
         Fold one stream message in, and notify entities if it mattered.
@@ -132,17 +187,37 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
         updates = message.get("updates")
         if not isinstance(updates, list):
             return
+
+        current = self.data
+        if current is None:
+            return
+
+        if any(isinstance(u, dict) and "frame" in u for u in updates):
+            # Fold the frame in and tell only the screen. Assigning `data`
+            # rather than calling async_set_updated_data is deliberate: the
+            # latter wakes every entity, which at ten frames a second is
+            # exactly what this avoids.
+            current = replace(
+                current, snapshot=apply_state_stream_update(current.snapshot, message)
+            )
+            self.data = current
+            self._announce_frame()
+
         if not any(
             isinstance(update, dict) and any(k in update for k in _INTERESTING)
             for update in updates
         ):
             return
 
-        current = self.data
-        if current is None:
-            return
         snapshot = apply_state_stream_update(current.snapshot, message)
-        self.async_set_updated_data(replace(current, snapshot=snapshot))
+        # Assign and notify by hand rather than through
+        # async_set_updated_data, which also reschedules the next poll.
+        # Power updates arrive every few seconds, so letting the stream
+        # reschedule pushed the poll past its interval indefinitely and the
+        # polled values - the smart-home switch, the brightness setting,
+        # the timezone - only refreshed when something asked them to.
+        self.data = replace(current, snapshot=snapshot)
+        self.async_update_listeners()
 
 
 type BusyBarConfigEntry = ConfigEntry[BusyBarCoordinator]

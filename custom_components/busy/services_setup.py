@@ -59,7 +59,6 @@ _NOTIFY_SCHEMA = vol.Schema(
         vol.Optional("duration", default=DEFAULT_DURATION): vol.All(
             vol.Coerce(int), vol.Range(min=0, max=MAX_DURATION)
         ),
-        vol.Optional("interrupt", default=False): cv.boolean,
         vol.Optional("font", default=notification.DEFAULT_FONT): vol.In(
             notification.ONE_LINE_FONTS
         ),
@@ -123,11 +122,7 @@ async def _async_notify(call: ServiceCall) -> None:
                 line_2_color=data.get("line_2_color"),
                 background_color=data.get("background_color"),
                 duration=data["duration"],
-                priority=(
-                    notification.PRIORITY_INTERRUPT
-                    if data["interrupt"]
-                    else notification.PRIORITY_DEFAULT
-                ),
+                priority=notification.PRIORITY_DEFAULT,
                 application_name=APPLICATION_NAME,
             )
         except BusyBarFeatureUnavailableError as err:

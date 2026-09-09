@@ -38,6 +38,9 @@
     },
     "invalid_notification": {
       "message": "That notification cannot be shown: {error}"
+    },
+    "setting_failed": {
+      "message": "Could not change that setting: {error}"
     }
   },
   "services": {
@@ -65,10 +68,6 @@
           "name": "Duration",
           "description": "How long the notification stays on screen."
         },
-        "interrupt": {
-          "name": "Interrupt",
-          "description": "Show it even while a Busy session owns the display."
-        },
         "font": {
           "name": "Font",
           "description": "Text font. The two largest only fit a single line."
@@ -85,6 +84,103 @@
           "name": "Background colour",
           "description": "Fills the panel behind the text. Needs API 24.3.0."
         }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "timer_mode": {
+        "name": "Timer mode",
+        "state": {
+          "not_started": "Not started",
+          "infinite": "Infinite",
+          "simple": "Countdown",
+          "interval": "Pomodoro"
+        }
+      },
+      "timer_phase": {
+        "name": "Timer phase",
+        "state": {
+          "work": "Work",
+          "rest": "Rest",
+          "none": "No session"
+        }
+      },
+      "timer_ends_at": {
+        "name": "Phase ends"
+      },
+      "timer_interval": {
+        "name": "Interval number"
+      },
+      "theme": {
+        "name": "Theme"
+      },
+      "battery": {
+        "name": "Battery"
+      },
+      "wifi_network": {
+        "name": "Wi-Fi network"
+      },
+      "wifi_signal": {
+        "name": "Wi-Fi signal",
+        "state": {
+          "weak": "Weak",
+          "medium": "Medium",
+          "strong": "Strong"
+        }
+      },
+      "wifi_signal_strength": {
+        "name": "Wi-Fi signal strength"
+      },
+      "ip_address": {
+        "name": "IP address"
+      },
+      "api_version": {
+        "name": "API version"
+      },
+      "boot_time": {
+        "name": "Started"
+      }
+    },
+    "binary_sensor": {
+      "timer_running": {
+        "name": "Timer running"
+      },
+      "charging": {
+        "name": "Charging"
+      },
+      "external_power": {
+        "name": "USB power"
+      }
+    },
+    "light": {
+      "smart_home_switch": {
+        "name": "Smart home switch"
+      }
+    },
+    "camera": {
+      "screen": {
+        "name": "Screen"
+      }
+    },
+    "number": {
+      "brightness": {
+        "name": "Brightness"
+      },
+      "volume": {
+        "name": "Volume"
+      }
+    },
+    "select": {
+      "brightness_mode": {
+        "name": "Brightness mode",
+        "state": {
+          "auto": "Automatic",
+          "manual": "Manual"
+        }
+      },
+      "timezone": {
+        "name": "Timezone"
       }
     }
   }

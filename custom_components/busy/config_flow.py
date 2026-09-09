@@ -7,7 +7,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import CONF_DEVICE_ID, CONF_TOKEN
+from homeassistant.const import CONF_DEVICE_ID, CONF_HOST, CONF_TOKEN
 
 from busylib.exceptions import BusyBarError
 
@@ -217,6 +217,10 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         self.entry_data = {
             CONF_DEVICE_ID: self.device.device_id,
             CONF_TOKEN: token,
+            # Remembering the address is what lets setup skip the ten-second
+            # mDNS scan. It is a hint, not the identity: the device_id above
+            # is that, and a bar that has moved is looked for again.
+            CONF_HOST: self.device.get_address(),
         }
 
         return self.async_create_entry(
