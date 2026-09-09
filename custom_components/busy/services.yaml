@@ -1,0 +1,78 @@
+notify:
+  target:
+    device:
+      integration: busy
+  fields:
+    line_1:
+      required: true
+      example: "Laundry done"
+      selector:
+        text:
+    line_2:
+      example: "Unload it"
+      selector:
+        text:
+    icon:
+      default: none
+      example: check
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - none
+            - check
+            - error
+            - info
+            - clock
+            - hourglass
+            - low_battery
+            - start
+            - setup
+    sound:
+      default: none
+      selector:
+        select:
+          options:
+            - none
+            - event
+            - reminder
+            - volume
+    duration:
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 120
+          unit_of_measurement: seconds
+    interrupt:
+      default: false
+      selector:
+        boolean:
+    appearance:
+      collapsed: true
+      fields:
+        font:
+          default: small
+          selector:
+            select:
+              mode: dropdown
+              options:
+                - tiny
+                - small
+                - normal
+                - condensed
+                - bold
+                - large
+                - extra_large
+        line_1_color:
+          example: [255, 255, 255]
+          selector:
+            color_rgb:
+        line_2_color:
+          example: [255, 255, 255]
+          selector:
+            color_rgb:
+        background_color:
+          example: [0, 0, 0]
+          selector:
+            color_rgb:

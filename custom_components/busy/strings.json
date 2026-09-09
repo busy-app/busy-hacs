@@ -23,6 +23,69 @@
     },
     "access_unauthorized": {
       "message": "Device has been removed from this smart home. Please reconfigure the device."
+    },
+    "unknown_device": {
+      "message": "That device is not known to Home Assistant."
+    },
+    "device_not_loaded": {
+      "message": "The BUSY Bar for that device is not set up."
+    },
+    "notify_failed": {
+      "message": "Could not show the notification: {error}"
+    },
+    "feature_needs_newer_firmware": {
+      "message": "{feature} needs BUSY Bar API {required_version}; this bar reports {device_version}. Update the firmware."
+    },
+    "invalid_notification": {
+      "message": "That notification cannot be shown: {error}"
+    }
+  },
+  "services": {
+    "notify": {
+      "name": "Show a notification",
+      "description": "Shows a message on the bar's front display, laid out to fit, with an optional icon and sound.",
+      "fields": {
+        "line_1": {
+          "name": "Line 1",
+          "description": "The first, or only, line of text."
+        },
+        "line_2": {
+          "name": "Line 2",
+          "description": "A second line. Giving it uses the two-line layout."
+        },
+        "icon": {
+          "name": "Icon",
+          "description": "A built-in icon, drawn at the left edge."
+        },
+        "sound": {
+          "name": "Sound",
+          "description": "A built-in sound, played with the notification."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "How long the notification stays on screen."
+        },
+        "interrupt": {
+          "name": "Interrupt",
+          "description": "Show it even while a Busy session owns the display."
+        },
+        "font": {
+          "name": "Font",
+          "description": "Text font. The two largest only fit a single line."
+        },
+        "line_1_color": {
+          "name": "Line 1 colour",
+          "description": "Colour of the first line."
+        },
+        "line_2_color": {
+          "name": "Line 2 colour",
+          "description": "Colour of the second line."
+        },
+        "background_color": {
+          "name": "Background colour",
+          "description": "Fills the panel behind the text. Needs API 24.3.0."
+        }
+      }
     }
   }
 }
