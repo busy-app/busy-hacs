@@ -51,7 +51,6 @@ async def async_setup_entry(
             TimerModeSensor(coordinator, name),
             TimerPhaseSensor(coordinator, name),
             TimerEndsAtSensor(coordinator, name),
-            TimerIntervalSensor(coordinator, name),
             ThemeSensor(coordinator, name),
             BatterySensor(coordinator, name),
             WifiNetworkSensor(coordinator, name),
@@ -147,20 +146,6 @@ class TimerEndsAtSensor(_TimerSensor):
             # A paused phase has no end until it is resumed.
             return None
         return dt_util.utcnow() + timedelta(milliseconds=state.time_left_ms)
-
-
-class TimerIntervalSensor(_TimerSensor):
-    """Which interval of the session is running."""
-
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "timer_interval")
-
-    @property
-    def native_value(self) -> int | None:
-        state = self._state()
-        return None if state is None else state.interval
 
 
 class ThemeSensor(BusyBarEntity, SensorEntity):

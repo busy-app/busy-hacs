@@ -109,9 +109,6 @@
       "timer_ends_at": {
         "name": "Phase ends"
       },
-      "timer_interval": {
-        "name": "Interval number"
-      },
       "theme": {
         "name": "Theme"
       },
@@ -153,11 +150,6 @@
         "name": "USB power"
       }
     },
-    "light": {
-      "smart_home_switch": {
-        "name": "Smart home switch"
-      }
-    },
     "camera": {
       "screen": {
         "name": "Screen"
@@ -172,15 +164,19 @@
       }
     },
     "select": {
-      "brightness_mode": {
-        "name": "Brightness mode",
-        "state": {
-          "auto": "Automatic",
-          "manual": "Manual"
-        }
-      },
       "timezone": {
         "name": "Timezone"
+      }
+    },
+    "switch": {
+      "smart_home_switch": {
+        "name": "Smart home switch"
+      },
+      "automatic_brightness": {
+        "name": "Automatic brightness"
+      },
+      "mute": {
+        "name": "Mute"
       }
     }
   }

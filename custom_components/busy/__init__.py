@@ -23,10 +23,10 @@ from .services_setup import async_register_services
 _PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.CAMERA,
-    Platform.LIGHT,
     Platform.NUMBER,
     Platform.SELECT,
     Platform.SENSOR,
+    Platform.SWITCH,
 ]
 _LOGGER = logging.getLogger(__name__)
 
