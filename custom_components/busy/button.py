@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from busylib import types
 from busylib.exceptions import BusyBarError
+from busylib.features import timer
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
@@ -39,8 +40,14 @@ async def async_setup_entry(
         ) from err
 
     async_add_entities(
-        BusyBarButton(coordinator, name, key, input_key)
-        for key, input_key in _BUTTONS
+        [
+            *(
+                BusyBarButton(coordinator, name, key, input_key)
+                for key, input_key in _BUTTONS
+            ),
+            NextPhaseButton(coordinator, name),
+            StopTimerButton(coordinator, name),
+        ]
     )
 
 
@@ -72,3 +79,59 @@ class BusyBarButton(BusyBarEntity, ButtonEntity):
                 translation_key="input_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
+
+
+class _TimerButton(BusyBarEntity, ButtonEntity):
+    """
+    Base for the buttons that change the session.
+
+    Both are one-way and take no options, which is what makes them buttons
+    rather than actions - the actions with fields are still there for an
+    automation that needs them.
+    """
+
+    async def _change(self, work) -> None:
+        try:
+            await work(self.coordinator.client)
+        except timer.TimerNotRunningError as err:
+            raise HomeAssistantError(
+                translation_domain="busy",
+                translation_key="timer_not_running",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        except BusyBarError as err:
+            raise HomeAssistantError(
+                translation_domain="busy",
+                translation_key="timer_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        await self.coordinator.async_request_refresh()
+
+
+class NextPhaseButton(_TimerButton):
+    """
+    Move an interval session on to its next phase.
+
+    The obvious use is cutting a break short, or starting one early.
+    """
+
+    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
+        super().__init__(coordinator, name, "next_phase")
+
+    async def async_press(self) -> None:
+        await self._change(timer.next_phase)
+
+
+class StopTimerButton(_TimerButton):
+    """
+    End the session.
+
+    Not the selector's off position, which is the bar's do-not-disturb:
+    this puts the session back to not started.
+    """
+
+    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
+        super().__init__(coordinator, name, "stop_timer")
+
+    async def async_press(self) -> None:
+        await self._change(timer.stop)

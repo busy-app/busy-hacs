@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import timedelta
 import logging
 
@@ -94,6 +94,7 @@ class BusyBarData:
     update_status: types.UpdateStatus | None = None
     autoupdate: types.AutoupdateSettings | None = None
     selector: str | None = None
+    cards: dict[str, types.BusyProfile] = field(default_factory=dict)
 
 
 class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
@@ -124,6 +125,13 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
             timezone = (await self.client.time_timezone_info()).name
             update_status = await self.client.update_status()
             autoupdate = await self.client.update_autoupdate()
+            # The bar's two cards, for the theme each one starts with. The
+            # stream does carry a timer_profiles update, so this poll can
+            # go once busylib folds that in.
+            cards = {
+                slot: await self.client.busy_profile(slot)
+                for slot in ("busy", "custom")
+            }
         except BusyBarError as err:
             raise UpdateFailed(f"BUSY Bar {self.device_id} is unreachable") from err
 
@@ -136,6 +144,7 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
                 timezone=timezone,
                 update_status=update_status,
                 autoupdate=autoupdate,
+                cards=cards,
             )
 
         snapshot = await collect_device_snapshot(self.client)
@@ -146,6 +155,7 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
             timezone=timezone,
             update_status=update_status,
             autoupdate=autoupdate,
+            cards=cards,
         )
 
     def start_stream(self) -> None:

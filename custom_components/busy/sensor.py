@@ -151,8 +151,14 @@ class TimerEndsAtSensor(_TimerSensor):
 
 
 class ThemeSensor(BusyBarEntity, SensorEntity):
-    """The theme the running profile is showing."""
+    """
+    The theme on screen right now.
 
+    Nothing while no session is running, because then no theme is being
+    shown: the snapshot still carries one - whatever the last session
+    ended with - and reporting that would claim the bar is showing a
+    theme it is not. Each card's own theme is a separate entity.
+    """
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
         super().__init__(coordinator, name, "theme")
@@ -161,6 +167,8 @@ class ThemeSensor(BusyBarEntity, SensorEntity):
     def native_value(self) -> str | None:
         data = self.coordinator.data
         if data is None or data.snapshot.timer is None:
+            return None
+        if not timer_state(data.snapshot.timer).is_running:
             return None
         return data.snapshot.timer.snapshot.busy_bar_settings.theme
 

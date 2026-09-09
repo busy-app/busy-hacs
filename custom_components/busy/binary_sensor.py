@@ -37,7 +37,6 @@ async def async_setup_entry(
     async_add_entities(
         [
             TimerRunningSensor(coordinator, name),
-            TimerPausedSensor(coordinator, name),
             ChargingSensor(coordinator, name),
             ExternalPowerSensor(coordinator, name),
         ]
@@ -62,26 +61,6 @@ class TimerRunningSensor(BusyBarEntity, BinarySensorEntity):
         if data is None or data.snapshot.timer is None:
             return None
         return timer_state(data.snapshot.timer).is_running
-
-
-class TimerPausedSensor(BusyBarEntity, BinarySensorEntity):
-    """
-    Whether the session is paused.
-
-    Separate from running rather than a fourth state of it: a paused
-    session is still a session, and an automation that waits for one to
-    end must not fire when someone pauses it.
-    """
-
-    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "timer_paused")
-
-    @property
-    def is_on(self) -> bool | None:
-        data = self.coordinator.data
-        if data is None or data.snapshot.timer is None:
-            return None
-        return timer_state(data.snapshot.timer).is_paused
 
 
 class ChargingSensor(BusyBarEntity, BinarySensorEntity):

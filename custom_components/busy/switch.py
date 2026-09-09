@@ -6,6 +6,7 @@ from typing import Any
 
 from busylib import types
 from busylib.exceptions import BusyBarError
+from busylib.features import timer
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import EntityCategory
@@ -48,6 +49,7 @@ async def async_setup_entry(
     async_add_entities(
         [
             SmartHomeSwitch(coordinator, name),
+            TimerPausedSwitch(coordinator, name),
             AutomaticBrightnessSwitch(coordinator, name),
             MuteSwitch(coordinator, name),
             AutomaticUpdatesSwitch(coordinator, name),
@@ -224,3 +226,47 @@ class AutomaticUpdatesSwitch(_SettingSwitch):
             interval_end=None if settings is None else settings.interval_end,
         )
         await self._write(self.coordinator.client.update_autoupdate_set(payload))
+
+
+class TimerPausedSwitch(BusyBarEntity, SwitchEntity):
+    """
+    Whether the running session is paused.
+
+    A switch rather than a sensor and two buttons: it is one fact that can
+    be read and set, and pausing is the kind of thing a person expects to
+    be able to undo the same way they did it. Turning it on with nothing
+    running is refused rather than starting a session to pause.
+    """
+
+    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
+        super().__init__(coordinator, name, "timer_paused")
+
+    @property
+    def is_on(self) -> bool | None:
+        data = self.coordinator.data
+        if data is None or data.snapshot.timer is None:
+            return None
+        return timer.timer_state(data.snapshot.timer).is_paused
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._paused(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._paused(False)
+
+    async def _paused(self, paused: bool) -> None:
+        try:
+            await timer.set_paused(self.coordinator.client, paused)
+        except timer.TimerNotRunningError as err:
+            raise HomeAssistantError(
+                translation_domain="busy",
+                translation_key="timer_not_running",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        except BusyBarError as err:
+            raise HomeAssistantError(
+                translation_domain="busy",
+                translation_key="timer_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        await self.coordinator.async_request_refresh()

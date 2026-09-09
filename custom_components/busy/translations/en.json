@@ -50,6 +50,12 @@
     },
     "input_failed": {
       "message": "The bar did not accept that input: {error}"
+    },
+    "timer_not_running": {
+      "message": "No session is running on the bar, so there is nothing to change: {error}"
+    },
+    "timer_failed": {
+      "message": "The bar did not accept that change: {error}"
     }
   },
   "services": {
@@ -94,6 +100,64 @@
           "description": "Fills the panel behind the text. Needs API 24.3.0."
         }
       }
+    },
+    "start_timer": {
+      "name": "Start the timer",
+      "description": "Starts the session one of the bar's two cards describes. The kind of session and its lengths come from the card.",
+      "fields": {
+        "card": {
+          "name": "Card",
+          "description": "Which of the bar's two cards to start."
+        },
+        "theme": {
+          "name": "Theme",
+          "description": "Show this session in a different theme. The card keeps its own, which the bar returns to when the session ends."
+        }
+      }
+    },
+    "stop_timer": {
+      "name": "Stop the timer",
+      "description": "Ends the session, leaving nothing running. Not the same as the selector's off position, which is the bar's do-not-disturb."
+    },
+    "pause_timer": {
+      "name": "Pause the timer",
+      "description": "Pauses the running session where it is."
+    },
+    "resume_timer": {
+      "name": "Resume the timer",
+      "description": "Continues a paused session."
+    },
+    "next_phase": {
+      "name": "Skip to the next phase",
+      "description": "Moves an interval session on: work becomes rest, rest becomes the next work. After the last interval the session ends."
+    },
+    "set_theme": {
+      "name": "Set the theme",
+      "description": "Changes the theme. Without a card, the running session changes and reverts when it ends; with one, that card's own theme changes for good.",
+      "fields": {
+        "theme": {
+          "name": "Theme",
+          "description": "A theme the bar has, such as meeting, dnd or lunch."
+        },
+        "card": {
+          "name": "Card",
+          "description": "Change this card's own theme instead of the running session's."
+        }
+      }
+    },
+    "play_sound": {
+      "name": "Play a sound",
+      "description": "Plays one of the bar's built-in sounds.",
+      "fields": {
+        "sound": {
+          "name": "Sound",
+          "description": "Which sound to play."
+        }
+      }
+    },
+    "clear": {
+      "name": "Clear the display",
+      "description": "Removes what this integration drew, leaving the bar's own screen. Notifications with a duration disappear on their own."
     }
   },
   "entity": {
@@ -170,9 +234,6 @@
       },
       "external_power": {
         "name": "Battery USB power"
-      },
-      "timer_paused": {
-        "name": "Timer paused"
       }
     },
     "camera": {
@@ -201,6 +262,12 @@
           "apps": "Apps",
           "settings": "Settings"
         }
+      },
+      "theme_busy": {
+        "name": "Theme busy card"
+      },
+      "theme_custom": {
+        "name": "Theme custom card"
       }
     },
     "switch": {
@@ -215,6 +282,9 @@
       },
       "automatic_updates": {
         "name": "Automatic firmware updates"
+      },
+      "timer_paused": {
+        "name": "Timer paused"
       }
     },
     "update": {
@@ -231,6 +301,12 @@
       },
       "start": {
         "name": "Press Start"
+      },
+      "next_phase": {
+        "name": "Timer next phase"
+      },
+      "stop_timer": {
+        "name": "Timer stop"
       }
     }
   }

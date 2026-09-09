@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from busylib import types
 from busylib.exceptions import BusyBarError
+from busylib.features import timer
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.const import EntityCategory
@@ -11,6 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, PlatformNotReady
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from .const import DEFAULT_THEME, THEMES_PATH
 from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
 from .entity import PARALLEL_UPDATES, BusyBarEntity
 
@@ -37,6 +39,7 @@ async def async_setup_entry(
         # The list of timezones the firmware knows is fixed for a given
         # build, so it is read once here rather than polled.
         timezones = [zone.name for zone in (await coordinator.client.time_timezone_list()).list]
+        themes = await _themes(coordinator)
     except BusyBarError as err:
         raise PlatformNotReady(
             f"BUSY Bar {coordinator.device_id} is unreachable"
@@ -45,9 +48,30 @@ async def async_setup_entry(
     async_add_entities(
         [
             SelectorSelect(coordinator, name),
+            ThemeSelect(coordinator, name, "busy", themes),
+            ThemeSelect(coordinator, name, "custom", themes),
             TimezoneSelect(coordinator, name, sorted(timezones)),
         ]
     )
+
+
+async def _themes(coordinator: BusyBarCoordinator) -> list[str]:
+    """The themes this bar has, read from the bar.
+
+    The list is whatever the firmware ships, so it is read from the
+    directory the themes live in rather than copied here where it would go
+    stale on the next release. The default theme has no directory of its
+    own, so it is added back.
+    """
+    listing = await coordinator.client.storage_list(THEMES_PATH)
+    names = {
+        entry.name
+        for entry in (listing.list or [])
+        # One directory per theme; anything else in there is not a theme.
+        if entry.name and entry.type == "dir"
+    }
+    names.add(DEFAULT_THEME)
+    return sorted(names)
 
 
 class TimezoneSelect(BusyBarEntity, SelectEntity):
@@ -115,3 +139,53 @@ class SelectorSelect(BusyBarEntity, SelectEntity):
                 translation_key="input_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
+
+
+class ThemeSelect(BusyBarEntity, SelectEntity):
+    """
+    The theme one of the bar's cards starts with.
+
+    A card's theme, not the running session's: this is the lasting choice,
+    and it does not change what is on screen right now. To change a
+    session already running, use the `set_theme` action - the bar treats
+    that as temporary and returns to the card's theme when it ends.
+    """
+
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(
+        self,
+        coordinator: BusyBarCoordinator,
+        name: str,
+        slot: types.BusyProfileSlot,
+        themes: list[str],
+    ) -> None:
+        super().__init__(coordinator, name, f"theme_{slot}")
+        self._slot: types.BusyProfileSlot = slot
+        self._attr_options = themes
+
+    @property
+    def current_option(self) -> str | None:
+        data = self.coordinator.data
+        if data is None:
+            return None
+        card = data.cards.get(self._slot)
+        if card is None:
+            return None
+        theme = card.busy_bar_settings.theme
+        # A theme the bar reports but has no directory for would otherwise
+        # be an option Home Assistant refuses to display.
+        if theme and theme not in (self._attr_options or []):
+            self._attr_options = sorted({*(self._attr_options or []), theme})
+        return theme
+
+    async def async_select_option(self, option: str) -> None:
+        try:
+            await timer.set_card_theme(self.coordinator.client, self._slot, option)
+        except BusyBarError as err:
+            raise HomeAssistantError(
+                translation_domain="busy",
+                translation_key="setting_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        await self.coordinator.async_request_refresh()
