@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 from datetime import timedelta
 import logging
 
-from busylib import AsyncBusyBar
+from busylib import AsyncBusyBar, types
 from busylib.exceptions import BusyBarError
 from busylib.features import (
     DeviceSnapshot,
@@ -22,11 +22,11 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 _LOGGER = logging.getLogger(__name__)
 
-# Three things are polled, because the bar has no push for them: the
-# smart-home switch, the configured brightness and the timezone. The
-# interval is what it is because nothing depends on any of them being
-# prompt - the entities people watch during a session are driven by the
-# stream.
+# What is polled, because the bar has no push for it: the smart-home
+# switch, the configured brightness, the timezone, and the firmware update
+# state. The interval is what it is because nothing depends on any of them
+# being prompt - the entities people watch during a session are driven by
+# the stream.
 UPDATE_INTERVAL = timedelta(seconds=30)
 
 # The stream is dominated by screen frames - roughly thirty per timer change -
@@ -61,6 +61,8 @@ class BusyBarData:
     smart_home: bool
     brightness: str | None = None
     timezone: str | None = None
+    update_status: types.UpdateStatus | None = None
+    autoupdate: types.AutoupdateSettings | None = None
 
 
 class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
@@ -89,6 +91,8 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
             switch = (await self.client.smart_home_switch()).state
             brightness = (await self.client.display_brightness()).value
             timezone = (await self.client.time_timezone_info()).name
+            update_status = await self.client.update_status()
+            autoupdate = await self.client.update_autoupdate()
         except BusyBarError as err:
             raise UpdateFailed(f"BUSY Bar {self.device_id} is unreachable") from err
 
@@ -99,6 +103,8 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
                 smart_home=switch,
                 brightness=brightness,
                 timezone=timezone,
+                update_status=update_status,
+                autoupdate=autoupdate,
             )
 
         snapshot = await collect_device_snapshot(self.client)
@@ -107,6 +113,8 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
             smart_home=switch,
             brightness=brightness,
             timezone=timezone,
+            update_status=update_status,
+            autoupdate=autoupdate,
         )
 
     def start_stream(self) -> None:

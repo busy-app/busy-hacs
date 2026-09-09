@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import logging
+from typing import Any
 from urllib.parse import urlparse
 
 from busylib import types
@@ -209,7 +210,13 @@ class _WifiSensor(BusyBarEntity, SensorEntity):
 
 
 class WifiNetworkSensor(_WifiSensor):
-    """Which network the bar is on."""
+    """
+    Which network the bar is on.
+
+    The rest of what the bar knows about the connection - the access point
+    it picked, the channel, the security - rides along as attributes rather
+    than as four more rows nobody scans.
+    """
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
         super().__init__(coordinator, name, "wifi_network")
@@ -218,6 +225,17 @@ class WifiNetworkSensor(_WifiSensor):
     def native_value(self) -> str | None:
         wifi = self._wifi()
         return None if wifi is None else wifi.ssid
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        wifi = self._wifi()
+        if wifi is None:
+            return None
+        return {
+            "access_point": wifi.bssid,
+            "channel": wifi.channel,
+            "security": None if wifi.security is None else wifi.security.value,
+        }
 
 
 class WifiSignalSensor(_WifiSensor):

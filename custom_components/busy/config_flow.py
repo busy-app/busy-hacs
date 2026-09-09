@@ -17,7 +17,7 @@ from .discovery import async_discover_busy
 _LOGGER = logging.getLogger(__name__)
 
 class ConfigFlow(ConfigFlow, domain=DOMAIN):
-    """
+    r"""
 
     "user"                            "zeroconf", "reconfigure"
      |                                          |

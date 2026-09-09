@@ -41,6 +41,12 @@
     },
     "setting_failed": {
       "message": "Could not change that setting: {error}"
+    },
+    "no_firmware_to_install": {
+      "message": "The bar has not reported a firmware version to install."
+    },
+    "firmware_install_failed": {
+      "message": "Could not start the firmware update: {error}"
     }
   },
   "services": {
@@ -107,7 +113,7 @@
         }
       },
       "timer_ends_at": {
-        "name": "Phase ends"
+        "name": "Timer phase ends"
       },
       "theme": {
         "name": "Theme"
@@ -147,7 +153,7 @@
         "name": "Charging"
       },
       "external_power": {
-        "name": "USB power"
+        "name": "External power"
       }
     },
     "camera": {
@@ -173,10 +179,18 @@
         "name": "Smart home switch"
       },
       "automatic_brightness": {
-        "name": "Automatic brightness"
+        "name": "Brightness automatic"
       },
       "mute": {
-        "name": "Mute"
+        "name": "Volume mute"
+      },
+      "automatic_updates": {
+        "name": "Automatic firmware updates"
+      }
+    },
+    "update": {
+      "firmware": {
+        "name": "Firmware"
       }
     }
   }

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from busylib import types
 from busylib.exceptions import BusyBarError
 
 from homeassistant.components.switch import SwitchEntity
@@ -49,6 +50,7 @@ async def async_setup_entry(
             SmartHomeSwitch(coordinator, name),
             AutomaticBrightnessSwitch(coordinator, name),
             MuteSwitch(coordinator, name),
+            AutomaticUpdatesSwitch(coordinator, name),
         ]
     )
 
@@ -173,3 +175,52 @@ class MuteSwitch(_SettingSwitch):
                 self._unmuted or _DEFAULT_VOLUME
             )
         )
+
+
+class AutomaticUpdatesSwitch(_SettingSwitch):
+    """
+    Whether the bar installs firmware updates by itself.
+
+    The bar keeps a window it is allowed to do that in - overnight by
+    default - which is left alone here: this only turns the whole thing on
+    or off, and the window is reported alongside it.
+    """
+
+    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
+        super().__init__(coordinator, name, "automatic_updates")
+
+    def _settings(self):
+        data = self.coordinator.data
+        return None if data is None else data.autoupdate
+
+    @property
+    def is_on(self) -> bool | None:
+        settings = self._settings()
+        return None if settings is None else settings.is_enabled
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        settings = self._settings()
+        if settings is None:
+            return None
+        return {
+            "window_start": settings.interval_start,
+            "window_end": settings.interval_end,
+        }
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._set(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._set(False)
+
+    async def _set(self, enabled: bool) -> None:
+        settings = self._settings()
+        # The bar replaces the whole settings object, so the window has to
+        # be sent back with the flag or it would be reset.
+        payload = types.AutoupdateSettings(
+            is_enabled=enabled,
+            interval_start=None if settings is None else settings.interval_start,
+            interval_end=None if settings is None else settings.interval_end,
+        )
+        await self._write(self.coordinator.client.update_autoupdate_set(payload))

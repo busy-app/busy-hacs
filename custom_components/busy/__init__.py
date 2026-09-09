@@ -5,6 +5,7 @@ import logging
 
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.const import CONF_DEVICE_ID, CONF_HOST, CONF_TOKEN
 from homeassistant.exceptions import (
@@ -16,6 +17,7 @@ from homeassistant.exceptions import (
 from busylib import AsyncBusyBar
 from busylib.exceptions import BusyBarError
 
+from .const import DOMAIN
 from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
 from .discovery import async_discover_busy
 from .services_setup import async_register_services
@@ -27,6 +29,7 @@ _PLATFORMS: list[Platform] = [
     Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
+    Platform.UPDATE,
 ]
 _LOGGER = logging.getLogger(__name__)
 
@@ -134,7 +137,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: BusyBarConfigEntry) -> b
     # starts before they do.
     coordinator.start_stream()
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)
+    _drop_stale_connections(hass, device_id)
     return True
+
+
+def _drop_stale_connections(hass: HomeAssistant, device_id: str) -> None:
+    """Remove MAC connections left on a device by an earlier version.
+
+    A device's connections are merged, never replaced, so the MACs this
+    integration used to report stay on the device page forever once
+    written - as bare addresses with no interface label. Nothing here needs
+    them: the bar is identified by its device_id, and the MACs are in the
+    diagnostics download, labelled.
+    """
+    registry = dr.async_get(hass)
+    device = registry.async_get_device(identifiers={(DOMAIN, device_id)})
+    if device is not None and device.connections:
+        registry.async_update_device(device.id, new_connections=set())
 
 async def async_unload_entry(hass: HomeAssistant, entry: BusyBarConfigEntry) -> bool:
     unloaded = await hass.config_entries.async_unload_platforms(entry, _PLATFORMS)

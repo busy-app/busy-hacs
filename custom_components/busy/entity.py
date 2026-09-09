@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
@@ -46,12 +46,12 @@ def _device_info(coordinator: BusyBarCoordinator, name: str) -> DeviceInfo:
         # whose OTP is not programmed - development units.
         if device.otp_model:
             info["hw_version"] = device.otp_model
-        # Only the Wi-Fi MAC. The bar also has a USB and a Bluetooth MAC,
-        # but a `connections` entry is how Home Assistant matches a device
-        # discovered twice, and listing all of them showed three MAC rows
-        # on the page for one device reachable over one of them.
-        if device.wifi_mac:
-            info["connections"] = {(CONNECTION_NETWORK_MAC, device.wifi_mac)}
+        # No `connections`. They exist so two integrations can recognise
+        # the same device, which nothing needs here - the identifier above
+        # is this bar's identity - and the device page rendered them as
+        # bare MAC addresses with no interface label and a link to
+        # somewhere unexplained. The bar has three MACs (Wi-Fi, USB,
+        # Bluetooth); labelled, they are in the diagnostics download.
 
     firmware = status.firmware
     if firmware is not None and firmware.version:

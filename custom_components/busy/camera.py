@@ -58,6 +58,7 @@ class BusyBarScreen(BusyBarEntity, Camera):
     """
 
     _attr_frame_interval = _FRAME_INTERVAL
+    _attr_icon = "mdi:dock-window"
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
         BusyBarEntity.__init__(self, coordinator, name, "screen")
@@ -89,6 +90,16 @@ class BusyBarScreen(BusyBarEntity, Camera):
     @property
     def available(self) -> bool:
         return super().available and self._screen() is not None
+
+    @property
+    def entity_picture(self) -> str | None:
+        # Home Assistant puts a camera's picture in every list row as a
+        # square thumbnail, cropped to fill. On a 72x16 panel that shows
+        # the leftmost fifth of the screen and nothing else, which is
+        # worse than no picture at all - so lists get the icon, and the
+        # picture stays where it is shown whole: the more-info dialog and
+        # any picture card.
+        return None
 
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
