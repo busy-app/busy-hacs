@@ -47,6 +47,9 @@
     },
     "firmware_install_failed": {
       "message": "Could not start the firmware update: {error}"
+    },
+    "input_failed": {
+      "message": "The bar did not accept that input: {error}"
     }
   },
   "services": {
@@ -143,6 +146,19 @@
       },
       "boot_time": {
         "name": "Started"
+      },
+      "bluetooth": {
+        "name": "Bluetooth",
+        "state": {
+          "reset": "Reset",
+          "initialization": "Starting up",
+          "disabled": "Not advertising",
+          "enabled": "Advertising",
+          "connectable": "Connectable",
+          "connected": "Connected",
+          "error": "Error",
+          "unknown": "Unknown"
+        }
       }
     },
     "binary_sensor": {
@@ -150,10 +166,13 @@
         "name": "Timer running"
       },
       "charging": {
-        "name": "Charging"
+        "name": "Battery charging"
       },
       "external_power": {
-        "name": "External power"
+        "name": "Battery USB power"
+      },
+      "timer_paused": {
+        "name": "Timer paused"
       }
     },
     "camera": {
@@ -172,6 +191,16 @@
     "select": {
       "timezone": {
         "name": "Timezone"
+      },
+      "selector": {
+        "name": "Selector",
+        "state": {
+          "busy": "Busy",
+          "custom": "Custom",
+          "off": "Off",
+          "apps": "Apps",
+          "settings": "Settings"
+        }
       }
     },
     "switch": {
@@ -191,6 +220,17 @@
     "update": {
       "firmware": {
         "name": "Firmware"
+      }
+    },
+    "button": {
+      "ok": {
+        "name": "Press OK"
+      },
+      "back": {
+        "name": "Press Back"
+      },
+      "start": {
+        "name": "Press Start"
       }
     }
   }

@@ -59,6 +59,7 @@ async def async_setup_entry(
             WifiSignalStrengthSensor(coordinator, name),
             IpAddressSensor(coordinator, name),
             ApiVersionSensor(coordinator, name),
+            BluetoothSensor(coordinator, name),
             BootTimeSensor(coordinator, name),
         ]
     )
@@ -356,3 +357,44 @@ class BootTimeSensor(BusyBarEntity, SensorEntity):
         if not boot_time:
             return None
         return dt_util.utc_from_timestamp(boot_time)
+
+
+class BluetoothSensor(BusyBarEntity, SensorEntity):
+    """
+    What the bar's Bluetooth radio is doing.
+
+    Not a connectivity switch: the bar decides for itself when to be
+    connectable, and this says which of those states it is in.
+    """
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    # The firmware's own vocabulary, from ble_status_names in api_ble.c.
+    # Note that "disabled" is its name for the radio being ready but not
+    # advertising, and "enabled" for advertising - not a mistake here.
+    _attr_options = [
+        "reset",
+        "initialization",
+        "disabled",
+        "enabled",
+        "connectable",
+        "connected",
+        "error",
+        "unknown",
+    ]
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
+        super().__init__(coordinator, name, "bluetooth")
+
+    @property
+    def native_value(self) -> str | None:
+        data = self.coordinator.data
+        if data is None or data.snapshot.ble is None:
+            return None
+        status = data.snapshot.ble.status
+        if not status:
+            return None
+        # The firmware reports its error state as "internal error", which
+        # is a sentence rather than a state name.
+        status = "error" if "error" in status.lower() else status.lower()
+        return status if status in self._attr_options else "unknown"

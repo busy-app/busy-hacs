@@ -32,7 +32,15 @@ UPDATE_INTERVAL = timedelta(seconds=30)
 # The stream is dominated by screen frames - roughly thirty per timer change -
 # so most entities are only told about updates that carried something they
 # show. Frames go to the screen entity instead, on their own throttle.
-_INTERESTING = ("timer", "power", "wifi", "device_name", "audio_volume")
+_INTERESTING = (
+    "timer",
+    "power",
+    "wifi",
+    "device_name",
+    "audio_volume",
+    "input",
+    "ble",
+)
 
 # The bar sends about ten frames a second. Refreshing an entity that often
 # would flood the state machine and the recorder for a picture nobody can
@@ -42,6 +50,28 @@ _FRAME_INTERVAL = 1.0
 # How long to wait before reconnecting a dropped stream. Long enough not to
 # hammer a rebooting bar, short enough that a session change is not missed.
 _RECONNECT_DELAY = 5.0
+
+
+def _selector_position(updates: list[object]) -> str | None:
+    """
+    The selector position, if one of these updates reported a change.
+
+    The bar reports the position only when it moves - there is no endpoint
+    that answers "where is the selector now" - so this is the only source,
+    and the position is unknown until the first move after a restart.
+    """
+    for update in updates:
+        if not isinstance(update, dict):
+            continue
+        event = update.get("input")
+        if not isinstance(event, dict):
+            continue
+        switch = event.get("switch_event")
+        if isinstance(switch, dict):
+            position = switch.get("position")
+            if isinstance(position, str):
+                return position.lower()
+    return None
 
 
 @dataclass(frozen=True)
@@ -63,6 +93,7 @@ class BusyBarData:
     timezone: str | None = None
     update_status: types.UpdateStatus | None = None
     autoupdate: types.AutoupdateSettings | None = None
+    selector: str | None = None
 
 
 class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
@@ -218,13 +249,14 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
             return
 
         snapshot = apply_state_stream_update(current.snapshot, message)
+        selector = _selector_position(updates) or current.selector
         # Assign and notify by hand rather than through
         # async_set_updated_data, which also reschedules the next poll.
         # Power updates arrive every few seconds, so letting the stream
         # reschedule pushed the poll past its interval indefinitely and the
         # polled values - the smart-home switch, the brightness setting,
         # the timezone - only refreshed when something asked them to.
-        self.data = replace(current, snapshot=snapshot)
+        self.data = replace(current, snapshot=snapshot, selector=selector)
         self.async_update_listeners()
 
 
