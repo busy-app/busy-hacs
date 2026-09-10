@@ -25,7 +25,7 @@ from .services_setup import async_register_services
 _PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
-    Platform.CAMERA,
+    Platform.IMAGE,
     Platform.NUMBER,
     Platform.SELECT,
     Platform.SENSOR,

@@ -236,11 +236,6 @@
         "name": "Battery USB power"
       }
     },
-    "camera": {
-      "screen": {
-        "name": "Screen"
-      }
-    },
     "number": {
       "brightness": {
         "name": "Brightness"
@@ -307,6 +302,11 @@
       },
       "stop_timer": {
         "name": "Timer stop"
+      }
+    },
+    "image": {
+      "screen": {
+        "name": "Screen"
       }
     }
   }
