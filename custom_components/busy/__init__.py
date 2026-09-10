@@ -6,6 +6,7 @@ import logging
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.const import CONF_DEVICE_ID, CONF_HOST, CONF_TOKEN
 from homeassistant.exceptions import (
@@ -16,6 +17,7 @@ from homeassistant.exceptions import (
 
 from busylib import AsyncBusyBar
 from busylib.exceptions import BusyBarError
+from busylib.transports import AiohttpTransport
 
 from .const import DOMAIN
 from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
@@ -59,11 +61,17 @@ async def _async_client(
     is looked for again and the entry updated. That also covers a bar
     moving between USB and Wi-Fi.
     """
+    # Requests go over the session Home Assistant already owns, rather
+    # than a second connection pool beside it: busylib takes a transport
+    # for exactly this. The status stream is separate - it speaks
+    # WebSocket, which does not go through an HTTP transport.
+    transport = AiohttpTransport(async_get_clientsession(hass))
+
     host = entry.data.get(CONF_HOST)
     if host:
         # Constructed in an executor: the client builds an SSL context.
         client = await hass.async_add_executor_job(
-            partial(AsyncBusyBar, host, token=token)
+            partial(AsyncBusyBar, host, token=token, transport=transport)
         )
         _LOGGER.debug(
             f"async_setup_entry: trying remembered address {client.base_url} "
@@ -86,7 +94,7 @@ async def _async_client(
         raise ConfigEntryNotReady(translation_key="device_unreachable")
 
     client = await hass.async_add_executor_job(
-        partial(device.to_async_client, token=token)
+        partial(device.to_async_client, token=token, transport=transport)
     )
     if client is None:
         raise ConfigEntryNotReady(translation_key="device_unreachable")
