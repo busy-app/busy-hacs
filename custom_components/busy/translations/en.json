@@ -56,6 +56,9 @@
     },
     "timer_failed": {
       "message": "The bar did not accept that change: {error}"
+    },
+    "unknown_theme": {
+      "message": "This bar has no theme called {theme}. It has: {available}."
     }
   },
   "services": {
@@ -137,7 +140,7 @@
       "fields": {
         "theme": {
           "name": "Theme",
-          "description": "A theme the bar has, such as meeting, dnd or lunch."
+          "description": "A theme this bar has. The bar's own list is on its theme entities; a name it does not have is refused rather than stored."
         },
         "card": {
           "name": "Card",

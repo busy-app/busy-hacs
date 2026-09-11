@@ -20,11 +20,3 @@ SERVICE_NEXT_PHASE = "next_phase"
 SERVICE_SET_THEME = "set_theme"
 SERVICE_PLAY_SOUND = "play_sound"
 SERVICE_CLEAR = "clear"
-
-# Where the bar keeps the themes it can show. Reading the directory is how
-# the theme list stays whatever the firmware actually ships, instead of a
-# copy here that goes stale on the next release.
-THEMES_PATH = "/ext/apps_assets/busy/themes"
-
-# The theme every bar has without an asset directory of its own.
-DEFAULT_THEME = "busy"

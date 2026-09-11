@@ -12,7 +12,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, PlatformNotReady
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DEFAULT_THEME, THEMES_PATH
 from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
 from .entity import PARALLEL_UPDATES, BusyBarEntity
 
@@ -39,7 +38,8 @@ async def async_setup_entry(
         # The list of timezones the firmware knows is fixed for a given
         # build, so it is read once here rather than polled.
         timezones = [zone.name for zone in (await coordinator.client.time_timezone_list()).list]
-        themes = await _themes(coordinator)
+        # The bar's own list, so it stays whatever the firmware ships.
+        themes = await timer.themes(coordinator.client)
     except BusyBarError as err:
         raise PlatformNotReady(
             f"BUSY Bar {coordinator.device_id} is unreachable"
@@ -53,25 +53,6 @@ async def async_setup_entry(
             TimezoneSelect(coordinator, name, sorted(timezones)),
         ]
     )
-
-
-async def _themes(coordinator: BusyBarCoordinator) -> list[str]:
-    """The themes this bar has, read from the bar.
-
-    The list is whatever the firmware ships, so it is read from the
-    directory the themes live in rather than copied here where it would go
-    stale on the next release. The default theme has no directory of its
-    own, so it is added back.
-    """
-    listing = await coordinator.client.storage_list(THEMES_PATH)
-    names = {
-        entry.name
-        for entry in (listing.list or [])
-        # One directory per theme; anything else in there is not a theme.
-        if entry.name and entry.type == "dir"
-    }
-    names.add(DEFAULT_THEME)
-    return sorted(names)
 
 
 class TimezoneSelect(BusyBarEntity, SelectEntity):
@@ -173,15 +154,22 @@ class ThemeSelect(BusyBarEntity, SelectEntity):
         if card is None:
             return None
         theme = card.busy_bar_settings.theme
-        # A theme the bar reports but has no directory for would otherwise
-        # be an option Home Assistant refuses to display.
+        # A theme set on the bar after this list was read - by its owner,
+        # or by an upload - would otherwise be a state Home Assistant
+        # refuses to display.
         if theme and theme not in (self._attr_options or []):
             self._attr_options = sorted({*(self._attr_options or []), theme})
         return theme
 
     async def async_select_option(self, option: str) -> None:
         try:
-            await timer.set_card_theme(self.coordinator.client, self._slot, option)
+            await timer.set_card_theme(
+                self.coordinator.client,
+                self._slot,
+                option,
+                # Offered from this list, so it needs no second opinion.
+                known=self._attr_options,
+            )
         except BusyBarError as err:
             raise HomeAssistantError(
                 translation_domain="busy",

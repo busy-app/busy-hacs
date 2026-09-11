@@ -212,6 +212,18 @@ async def _for_each_bar(call: ServiceCall, work) -> None:
                 translation_key="timer_not_running",
                 translation_placeholders={"error": str(err)},
             ) from err
+        except timer.UnknownThemeError as err:
+            # Caught before BusyBarError, which it subclasses: a theme
+            # this bar does not have is a mistake in the automation, not
+            # a device failure, and retrying will not fix it.
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_theme",
+                translation_placeholders={
+                    "theme": err.theme,
+                    "available": ", ".join(err.available),
+                },
+            ) from err
         except BusyBarError as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
