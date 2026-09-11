@@ -44,10 +44,6 @@ notify:
           min: 0
           max: 120
           unit_of_measurement: seconds
-    interrupt:
-      default: false
-      selector:
-        boolean:
     appearance:
       collapsed: true
       fields:
@@ -76,3 +72,79 @@ notify:
           example: [0, 0, 0]
           selector:
             color_rgb:
+
+start_timer:
+  target:
+    device:
+      integration: busy
+  fields:
+    card:
+      default: busy
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - busy
+            - custom
+    theme:
+      example: meeting
+      selector:
+        text:
+
+stop_timer:
+  target:
+    device:
+      integration: busy
+
+pause_timer:
+  target:
+    device:
+      integration: busy
+
+resume_timer:
+  target:
+    device:
+      integration: busy
+
+next_phase:
+  target:
+    device:
+      integration: busy
+
+set_theme:
+  target:
+    device:
+      integration: busy
+  fields:
+    theme:
+      required: true
+      example: meeting
+      selector:
+        text:
+    card:
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - busy
+            - custom
+
+play_sound:
+  target:
+    device:
+      integration: busy
+  fields:
+    sound:
+      required: true
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - event
+            - reminder
+            - volume
+
+clear:
+  target:
+    device:
+      integration: busy

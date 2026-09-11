@@ -27,14 +27,22 @@ from homeassistant.helpers import config_validation as cv, device_registry as dr
 
 from busylib import AsyncBusyBar
 from busylib.exceptions import BusyBarError, BusyBarFeatureUnavailableError
-from busylib.features import notification
+from busylib.features import notification, timer
 
 from .const import (
     APPLICATION_NAME,
     DEFAULT_DURATION,
     DOMAIN,
     MAX_DURATION,
+    SERVICE_CLEAR,
+    SERVICE_NEXT_PHASE,
     SERVICE_NOTIFY,
+    SERVICE_PAUSE_TIMER,
+    SERVICE_PLAY_SOUND,
+    SERVICE_RESUME_TIMER,
+    SERVICE_SET_THEME,
+    SERVICE_START_TIMER,
+    SERVICE_STOP_TIMER,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -59,7 +67,6 @@ _NOTIFY_SCHEMA = vol.Schema(
         vol.Optional("duration", default=DEFAULT_DURATION): vol.All(
             vol.Coerce(int), vol.Range(min=0, max=MAX_DURATION)
         ),
-        vol.Optional("interrupt", default=False): cv.boolean,
         vol.Optional("font", default=notification.DEFAULT_FONT): vol.In(
             notification.ONE_LINE_FONTS
         ),
@@ -67,6 +74,36 @@ _NOTIFY_SCHEMA = vol.Schema(
         vol.Optional("line_2_color"): _COLOUR,
         vol.Optional("background_color"): _COLOUR,
     }
+)
+
+
+# Which bar to target, and nothing else: these actions take the same
+# device selector as every other action here.
+_TARGET_SCHEMA = vol.Schema(
+    {vol.Required(ATTR_DEVICE_ID): vol.All(cv.ensure_list, [cv.string])}
+)
+
+_SLOT = vol.In(("busy", "custom"))
+
+_START_SCHEMA = _TARGET_SCHEMA.extend(
+    {
+        vol.Optional("card", default="busy"): _SLOT,
+        # A theme here belongs to this session only; the card keeps its own.
+        vol.Optional("theme"): cv.string,
+    }
+)
+
+_SET_THEME_SCHEMA = _TARGET_SCHEMA.extend(
+    {
+        vol.Required("theme"): cv.string,
+        # Without a card, the running session's theme changes and reverts
+        # when it ends. With one, that card's own theme changes for good.
+        vol.Optional("card"): _SLOT,
+    }
+)
+
+_PLAY_SOUND_SCHEMA = _TARGET_SCHEMA.extend(
+    {vol.Required("sound"): vol.In(sorted(notification.STOCK_SOUNDS))}
 )
 
 
@@ -123,11 +160,7 @@ async def _async_notify(call: ServiceCall) -> None:
                 line_2_color=data.get("line_2_color"),
                 background_color=data.get("background_color"),
                 duration=data["duration"],
-                priority=(
-                    notification.PRIORITY_INTERRUPT
-                    if data["interrupt"]
-                    else notification.PRIORITY_DEFAULT
-                ),
+                priority=notification.PRIORITY_DEFAULT,
                 application_name=APPLICATION_NAME,
             )
         except BusyBarFeatureUnavailableError as err:
@@ -162,6 +195,135 @@ async def _async_notify(call: ServiceCall) -> None:
             ) from err
 
 
+async def _for_each_bar(call: ServiceCall, work) -> None:
+    """
+    Run one change against every targeted bar, translating what it raises.
+
+    `TimerNotRunningError` is a validation failure rather than a device
+    failure: the automation asked to pause something that is not running,
+    and retrying will not help.
+    """
+    for client in _clients(call.hass, call.data[ATTR_DEVICE_ID]):
+        try:
+            await work(client, call.data)
+        except timer.TimerNotRunningError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="timer_not_running",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        except timer.UnknownThemeError as err:
+            # Caught before BusyBarError, which it subclasses: a theme
+            # this bar does not have is a mistake in the automation, not
+            # a device failure, and retrying will not fix it.
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_theme",
+                translation_placeholders={
+                    "theme": err.theme,
+                    "available": ", ".join(err.available),
+                },
+            ) from err
+        except BusyBarError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="timer_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+
+
+async def _async_start_timer(call: ServiceCall) -> None:
+    """
+    Start the session one of the bar's two cards describes.
+    """
+
+    async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
+        await timer.start(client, data["card"], theme=data.get("theme"))
+
+    await _for_each_bar(call, work)
+
+
+async def _async_stop_timer(call: ServiceCall) -> None:
+    """
+    End the session. Not the selector's off position, which is the bar's
+    do-not-disturb rather than a session ending.
+    """
+
+    async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
+        await timer.stop(client)
+
+    await _for_each_bar(call, work)
+
+
+async def _async_pause_timer(call: ServiceCall) -> None:
+    async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
+        await timer.set_paused(client, True)
+
+    await _for_each_bar(call, work)
+
+
+async def _async_resume_timer(call: ServiceCall) -> None:
+    async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
+        await timer.set_paused(client, False)
+
+    await _for_each_bar(call, work)
+
+
+async def _async_next_phase(call: ServiceCall) -> None:
+    """
+    Move an interval session on: work to rest, or rest to the next work.
+    """
+
+    async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
+        await timer.next_phase(client)
+
+    await _for_each_bar(call, work)
+
+
+async def _async_set_theme(call: ServiceCall) -> None:
+    """
+    Change a theme, either for this session or for one of the cards.
+    """
+
+    async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
+        card = data.get("card")
+        if card is None:
+            await timer.set_session_theme(client, data["theme"])
+        else:
+            await timer.set_card_theme(client, card, data["theme"])
+
+    await _for_each_bar(call, work)
+
+
+async def _async_play_sound(call: ServiceCall) -> None:
+    """
+    Play one of the bar's built-in sounds.
+    """
+
+    async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
+        await client.audio_play(
+            stock_path=notification.STOCK_SOUNDS[data["sound"]],
+            application_name=APPLICATION_NAME,
+        )
+
+    await _for_each_bar(call, work)
+
+
+async def _async_clear(call: ServiceCall) -> None:
+    """
+    Remove what this integration drew, leaving the bar's own screen.
+
+    Only this integration's elements: the bar owns everything drawn under
+    a different application name, and a notification with a duration
+    disappears on its own anyway.
+    """
+
+    async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
+        await client.display_clear(application_name=APPLICATION_NAME)
+
+    await _for_each_bar(call, work)
+
+
 def async_register_services(hass: HomeAssistant) -> None:
     """
     Register every action this integration provides.
@@ -169,3 +331,14 @@ def async_register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_NOTIFY, _async_notify, schema=_NOTIFY_SCHEMA
     )
+    for name, handler, schema in (
+        (SERVICE_START_TIMER, _async_start_timer, _START_SCHEMA),
+        (SERVICE_STOP_TIMER, _async_stop_timer, _TARGET_SCHEMA),
+        (SERVICE_PAUSE_TIMER, _async_pause_timer, _TARGET_SCHEMA),
+        (SERVICE_RESUME_TIMER, _async_resume_timer, _TARGET_SCHEMA),
+        (SERVICE_NEXT_PHASE, _async_next_phase, _TARGET_SCHEMA),
+        (SERVICE_SET_THEME, _async_set_theme, _SET_THEME_SCHEMA),
+        (SERVICE_PLAY_SOUND, _async_play_sound, _PLAY_SOUND_SCHEMA),
+        (SERVICE_CLEAR, _async_clear, _TARGET_SCHEMA),
+    ):
+        hass.services.async_register(DOMAIN, name, handler, schema=schema)

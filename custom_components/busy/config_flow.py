@@ -7,7 +7,8 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import CONF_DEVICE_ID, CONF_TOKEN
+from homeassistant.const import CONF_DEVICE_ID, CONF_HOST, CONF_TOKEN
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from busylib.devices import (
     BUSYBAR_INSTANCE_NAME_PREFIX,
@@ -17,6 +18,7 @@ from busylib.devices import (
     BusyBarDevice,
 )
 from busylib.exceptions import BusyBarError
+from busylib.transports import AiohttpTransport
 
 from .const import DOMAIN
 from .discovery import async_discover_busy
@@ -42,7 +44,7 @@ def _announced_address(ip: str) -> BusyBarAddress:
     )
 
 class ConfigFlow(ConfigFlow, domain=DOMAIN):
-    """
+    r"""
 
     "user"                                     "zeroconf"
      |                                             |
@@ -263,7 +265,13 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.debug("step \"mint_token\" (without input)")
 
         client = await self.hass.async_add_executor_job(
-            partial(self.device.to_async_client, token=password)
+            partial(
+                self.device.to_async_client,
+                token=password,
+                # Home Assistant's own session, so minting a token uses the
+                # same connection pool as everything after it.
+                transport=AiohttpTransport(async_get_clientsession(self.hass)),
+            )
         )
 
         try:
@@ -283,6 +291,10 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         self.entry_data = {
             CONF_DEVICE_ID: self.device.device_id,
             CONF_TOKEN: token,
+            # Remembering the address is what lets setup skip the ten-second
+            # mDNS scan. It is a hint, not the identity: the device_id above
+            # is that, and a bar that has moved is looked for again.
+            CONF_HOST: self.device.get_address(),
         }
 
         return self.async_create_entry(

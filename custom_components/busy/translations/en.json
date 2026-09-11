@@ -38,6 +38,27 @@
     },
     "invalid_notification": {
       "message": "That notification cannot be shown: {error}"
+    },
+    "setting_failed": {
+      "message": "Could not change that setting: {error}"
+    },
+    "no_firmware_to_install": {
+      "message": "The bar has not reported a firmware version to install."
+    },
+    "firmware_install_failed": {
+      "message": "Could not start the firmware update: {error}"
+    },
+    "input_failed": {
+      "message": "The bar did not accept that input: {error}"
+    },
+    "timer_not_running": {
+      "message": "No session is running on the bar, so there is nothing to change: {error}"
+    },
+    "timer_failed": {
+      "message": "The bar did not accept that change: {error}"
+    },
+    "unknown_theme": {
+      "message": "This bar has no theme called {theme}. It has: {available}."
     }
   },
   "services": {
@@ -65,10 +86,6 @@
           "name": "Duration",
           "description": "How long the notification stays on screen."
         },
-        "interrupt": {
-          "name": "Interrupt",
-          "description": "Show it even while a Busy session owns the display."
-        },
         "font": {
           "name": "Font",
           "description": "Text font. The two largest only fit a single line."
@@ -85,6 +102,214 @@
           "name": "Background colour",
           "description": "Fills the panel behind the text. Needs API 24.3.0."
         }
+      }
+    },
+    "start_timer": {
+      "name": "Start the timer",
+      "description": "Starts the session one of the bar's two cards describes. The kind of session and its lengths come from the card.",
+      "fields": {
+        "card": {
+          "name": "Card",
+          "description": "Which of the bar's two cards to start."
+        },
+        "theme": {
+          "name": "Theme",
+          "description": "Show this session in a different theme. The card keeps its own, which the bar returns to when the session ends."
+        }
+      }
+    },
+    "stop_timer": {
+      "name": "Stop the timer",
+      "description": "Ends the session, leaving nothing running. Not the same as the selector's off position, which is the bar's do-not-disturb."
+    },
+    "pause_timer": {
+      "name": "Pause the timer",
+      "description": "Pauses the running session where it is."
+    },
+    "resume_timer": {
+      "name": "Resume the timer",
+      "description": "Continues a paused session."
+    },
+    "next_phase": {
+      "name": "Skip to the next phase",
+      "description": "Moves an interval session on: work becomes rest, rest becomes the next work. After the last interval the session ends."
+    },
+    "set_theme": {
+      "name": "Set the theme",
+      "description": "Changes the theme. Without a card, the running session changes and reverts when it ends; with one, that card's own theme changes for good.",
+      "fields": {
+        "theme": {
+          "name": "Theme",
+          "description": "A theme this bar has. The bar's own list is on its theme entities; a name it does not have is refused rather than stored."
+        },
+        "card": {
+          "name": "Card",
+          "description": "Change this card's own theme instead of the running session's."
+        }
+      }
+    },
+    "play_sound": {
+      "name": "Play a sound",
+      "description": "Plays one of the bar's built-in sounds.",
+      "fields": {
+        "sound": {
+          "name": "Sound",
+          "description": "Which sound to play."
+        }
+      }
+    },
+    "clear": {
+      "name": "Clear the display",
+      "description": "Removes what this integration drew, leaving the bar's own screen. Notifications with a duration disappear on their own."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "timer_mode": {
+        "name": "Timer mode",
+        "state": {
+          "not_started": "Not started",
+          "infinite": "Infinite",
+          "simple": "Countdown",
+          "interval": "Pomodoro"
+        }
+      },
+      "timer_phase": {
+        "name": "Timer phase",
+        "state": {
+          "work": "Work",
+          "rest": "Rest",
+          "none": "No session"
+        }
+      },
+      "timer_ends_at": {
+        "name": "Timer phase ends"
+      },
+      "theme": {
+        "name": "Theme"
+      },
+      "battery": {
+        "name": "Battery"
+      },
+      "wifi_network": {
+        "name": "Wi-Fi network"
+      },
+      "wifi_signal": {
+        "name": "Wi-Fi signal",
+        "state": {
+          "weak": "Weak",
+          "medium": "Medium",
+          "strong": "Strong"
+        }
+      },
+      "wifi_signal_strength": {
+        "name": "Wi-Fi signal strength"
+      },
+      "ip_address": {
+        "name": "IP address"
+      },
+      "api_version": {
+        "name": "API version"
+      },
+      "boot_time": {
+        "name": "Started"
+      },
+      "bluetooth": {
+        "name": "Bluetooth",
+        "state": {
+          "reset": "Reset",
+          "initialization": "Starting up",
+          "disabled": "Not advertising",
+          "enabled": "Advertising",
+          "connectable": "Connectable",
+          "connected": "Connected",
+          "error": "Error",
+          "unknown": "Unknown"
+        }
+      }
+    },
+    "binary_sensor": {
+      "timer_running": {
+        "name": "Timer running"
+      },
+      "charging": {
+        "name": "Battery charging"
+      },
+      "external_power": {
+        "name": "Battery USB power"
+      }
+    },
+    "number": {
+      "brightness": {
+        "name": "Brightness"
+      },
+      "volume": {
+        "name": "Volume"
+      }
+    },
+    "select": {
+      "timezone": {
+        "name": "Timezone"
+      },
+      "selector": {
+        "name": "Selector",
+        "state": {
+          "busy": "Busy",
+          "custom": "Custom",
+          "off": "Off",
+          "apps": "Apps",
+          "settings": "Settings"
+        }
+      },
+      "theme_busy": {
+        "name": "Theme busy card"
+      },
+      "theme_custom": {
+        "name": "Theme custom card"
+      }
+    },
+    "switch": {
+      "smart_home_switch": {
+        "name": "Smart home switch"
+      },
+      "automatic_brightness": {
+        "name": "Brightness automatic"
+      },
+      "mute": {
+        "name": "Volume mute"
+      },
+      "automatic_updates": {
+        "name": "Automatic firmware updates"
+      },
+      "timer_paused": {
+        "name": "Timer paused"
+      }
+    },
+    "update": {
+      "firmware": {
+        "name": "Firmware"
+      }
+    },
+    "button": {
+      "ok": {
+        "name": "Press OK"
+      },
+      "back": {
+        "name": "Press Back"
+      },
+      "start": {
+        "name": "Press Start"
+      },
+      "next_phase": {
+        "name": "Timer next phase"
+      },
+      "stop_timer": {
+        "name": "Timer stop"
+      }
+    },
+    "image": {
+      "screen": {
+        "name": "Screen"
       }
     }
   }

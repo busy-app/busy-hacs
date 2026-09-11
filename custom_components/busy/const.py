@@ -12,3 +12,11 @@ DEFAULT_DURATION = 10
 MAX_DURATION = 120
 
 SERVICE_NOTIFY = "notify"
+SERVICE_START_TIMER = "start_timer"
+SERVICE_STOP_TIMER = "stop_timer"
+SERVICE_PAUSE_TIMER = "pause_timer"
+SERVICE_RESUME_TIMER = "resume_timer"
+SERVICE_NEXT_PHASE = "next_phase"
+SERVICE_SET_THEME = "set_theme"
+SERVICE_PLAY_SOUND = "play_sound"
+SERVICE_CLEAR = "clear"
