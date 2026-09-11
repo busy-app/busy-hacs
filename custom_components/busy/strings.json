@@ -311,6 +311,52 @@
       "screen": {
         "name": "Screen"
       }
+    },
+    "event": {
+      "button_ok": {
+        "name": "Button OK",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "press": "Pressed",
+              "release": "Released"
+            }
+          }
+        }
+      },
+      "button_back": {
+        "name": "Button Back",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "press": "Pressed",
+              "release": "Released"
+            }
+          }
+        }
+      },
+      "button_start": {
+        "name": "Button Start",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "press": "Pressed",
+              "release": "Released"
+            }
+          }
+        }
+      },
+      "wheel": {
+        "name": "Wheel",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "clockwise": "Turned clockwise",
+              "counterclockwise": "Turned counterclockwise"
+            }
+          }
+        }
+      }
     }
   }
 }

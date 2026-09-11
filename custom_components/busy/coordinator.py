@@ -12,8 +12,11 @@ from busylib import AsyncBusyBar, types
 from busylib.exceptions import BusyBarError
 from busylib.features import (
     DeviceSnapshot,
+    InputEvent,
+    SelectorEvent,
     apply_state_stream_update,
     collect_device_snapshot,
+    input_events,
 )
 
 from homeassistant.config_entries import ConfigEntry
@@ -50,28 +53,6 @@ _FRAME_INTERVAL = 1.0
 # How long to wait before reconnecting a dropped stream. Long enough not to
 # hammer a rebooting bar, short enough that a session change is not missed.
 _RECONNECT_DELAY = 5.0
-
-
-def _selector_position(updates: list[object]) -> str | None:
-    """
-    The selector position, if one of these updates reported a change.
-
-    The bar reports the position only when it moves - there is no endpoint
-    that answers "where is the selector now" - so this is the only source,
-    and the position is unknown until the first move after a restart.
-    """
-    for update in updates:
-        if not isinstance(update, dict):
-            continue
-        event = update.get("input")
-        if not isinstance(event, dict):
-            continue
-        switch = event.get("switch_event")
-        if isinstance(switch, dict):
-            position = switch.get("position")
-            if isinstance(position, str):
-                return position.lower()
-    return None
 
 
 @dataclass(frozen=True)
@@ -114,6 +95,7 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
         self._stream: asyncio.Task[None] | None = None
         self._frame_listeners: list[Callable[[], None]] = []
         self._frame_announced = 0.0
+        self._input_listeners: list[Callable[[InputEvent], None]] = []
 
     async def _async_update_data(self) -> BusyBarData:
         try:
@@ -218,6 +200,35 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
 
         return remove
 
+    def add_input_listener(
+        self, callback: Callable[[InputEvent], None]
+    ) -> Callable[[], None]:
+        """
+        Be told about every button, selector and wheel event as it arrives.
+
+        Unthrottled, unlike frames: these are things a person just did, and
+        an automation that misses one has missed the point. They are rare
+        enough that there is nothing to protect against.
+
+        Returns a function that unsubscribes, for an entity to call when it
+        is removed.
+        """
+        self._input_listeners.append(callback)
+
+        def remove() -> None:
+            if callback in self._input_listeners:
+                self._input_listeners.remove(callback)
+
+        return remove
+
+    def _announce_input(self, events: list[InputEvent]) -> None:
+        """
+        Hand each event to everything listening.
+        """
+        for event in events:
+            for callback in list(self._input_listeners):
+                callback(event)
+
     def _announce_frame(self) -> None:
         """
         Tell the screen entity, unless it was told recently.
@@ -241,6 +252,13 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
         if current is None:
             return
 
+        # Input is decoded by busylib, which knows that proto3 omits an
+        # enum holding its first value - so an empty button event is a
+        # press of OK rather than nothing at all.
+        events = input_events(message)
+        if events:
+            self._announce_input(events)
+
         if any(isinstance(u, dict) and "frame" in u for u in updates):
             # Fold the frame in and tell only the screen. Assigning `data`
             # rather than calling async_set_updated_data is deliberate: the
@@ -259,7 +277,8 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
             return
 
         snapshot = apply_state_stream_update(current.snapshot, message)
-        selector = _selector_position(updates) or current.selector
+        moved = [event for event in events if isinstance(event, SelectorEvent)]
+        selector = moved[-1].position if moved else current.selector
         # Assign and notify by hand rather than through
         # async_set_updated_data, which also reschedules the next poll.
         # Power updates arrive every few seconds, so letting the stream
