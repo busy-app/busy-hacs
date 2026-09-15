@@ -293,10 +293,10 @@
         "name": "Volume mute"
       },
       "session_busy": {
-        "name": "Busy session"
+        "name": "Session Busy"
       },
       "session_custom": {
-        "name": "Custom session"
+        "name": "Session Custom"
       },
       "session_paused": {
         "name": "Session paused"
