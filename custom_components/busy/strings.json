@@ -76,7 +76,7 @@
         },
         "icon": {
           "name": "Icon",
-          "description": "A built-in icon, drawn at the left edge."
+          "description": "An icon to draw at the left edge. The list holds what the firmware ships, including the Draw Tool's set under the same names it shows there; any other icon on the bar can be typed in. A name the bar does not have is refused with the list it does have."
         },
         "sound": {
           "name": "Sound",
