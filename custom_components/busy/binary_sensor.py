@@ -50,8 +50,12 @@ class SessionRunningSensor(BusyBarEntity, BinarySensorEntity):
     Whether a session is under way, paused included.
 
     Separate from the phase sensor so an automation can react to "a session
-    started" without caring which phase it began in.
+    started" without caring which phase it began in - which is also why it
+    is hidden from dashboards: the two session switches already show it,
+    and this exists for automations rather than for looking at.
     """
+
+    _attr_entity_registry_visible_default = False
 
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
