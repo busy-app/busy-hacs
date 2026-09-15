@@ -85,20 +85,34 @@ _TARGET_SCHEMA = vol.Schema(
 
 _SLOT = vol.In(("busy", "custom"))
 
+# Durations are minutes in the action and milliseconds on the wire:
+# nobody writes a pomodoro in milliseconds, and the bar takes nothing
+# shorter than five minutes anyway.
+_MINUTES = vol.All(vol.Coerce(int), vol.Range(min=1, max=24 * 60))
+
 _START_SCHEMA = _TARGET_SCHEMA.extend(
     {
-        vol.Optional("card", default="busy"): _SLOT,
+        # "Mode" is what the bar's two positions are called; `card` is what
+        # the API calls the thing each one points at.
+        vol.Optional("mode", default="busy"): _SLOT,
         # A theme here belongs to this session only; the card keeps its own.
         vol.Optional("theme"): cv.string,
+        # These do outlast the session. A session cannot carry a length of
+        # its own - the device rejects a snapshot that disagrees with its
+        # card - so asking for one writes the card, and the bar and the
+        # phone app see the change. Left out, the card is not touched.
+        vol.Optional("duration"): _MINUTES,
+        vol.Optional("rest"): _MINUTES,
+        vol.Optional("cycles"): vol.All(vol.Coerce(int), vol.Range(min=1, max=12)),
     }
 )
 
 _SET_THEME_SCHEMA = _TARGET_SCHEMA.extend(
     {
         vol.Required("theme"): cv.string,
-        # Without a card, the running session's theme changes and reverts
-        # when it ends. With one, that card's own theme changes for good.
-        vol.Optional("card"): _SLOT,
+        # Without a mode, the running session's theme changes and reverts
+        # when it ends. With one, that mode's own theme changes for good.
+        vol.Optional("mode"): _SLOT,
     }
 )
 
@@ -132,6 +146,13 @@ def _clients(hass: HomeAssistant, device_ids: list[str]) -> list[AsyncBusyBar]:
                 translation_domain=DOMAIN, translation_key="device_not_loaded"
             )
     return clients
+
+
+def _ms(minutes: int | None) -> int | None:
+    """
+    Minutes as the action takes them, milliseconds as the bar wants them.
+    """
+    return None if minutes is None else minutes * 60_000
 
 
 def _optional(value: str | None) -> str | None:
@@ -212,6 +233,20 @@ async def _for_each_bar(call: ServiceCall, work) -> None:
                 translation_key="timer_not_running",
                 translation_placeholders={"error": str(err)},
             ) from err
+        except timer.PhaseTooShortError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="phase_too_short",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        except ValueError as err:
+            # busylib refuses a length the card cannot use - a total for an
+            # interval card, say - which is a mistake in the automation.
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_timer_request",
+                translation_placeholders={"error": str(err)},
+            ) from err
         except timer.UnknownThemeError as err:
             # Caught before BusyBarError, which it subclasses: a theme
             # this bar does not have is a mistake in the automation, not
@@ -238,7 +273,18 @@ async def _async_start_timer(call: ServiceCall) -> None:
     """
 
     async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
-        await timer.start(client, data["card"], theme=data.get("theme"))
+        mode = data["mode"]
+        minutes = ("duration", "rest")
+        if any(data.get(field) is not None for field in (*minutes, "cycles")):
+            await timer.configure(
+                client,
+                mode,
+                work_ms=_ms(data.get("duration")),
+                rest_ms=_ms(data.get("rest")),
+                cycles=data.get("cycles"),
+                total_ms=None,
+            )
+        await timer.start(client, mode, theme=data.get("theme"))
 
     await _for_each_bar(call, work)
 
@@ -286,11 +332,11 @@ async def _async_set_theme(call: ServiceCall) -> None:
     """
 
     async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
-        card = data.get("card")
-        if card is None:
+        mode = data.get("mode")
+        if mode is None:
             await timer.set_session_theme(client, data["theme"])
         else:
-            await timer.set_card_theme(client, card, data["theme"])
+            await timer.set_card_theme(client, mode, data["theme"])
 
     await _for_each_bar(call, work)
 

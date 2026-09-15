@@ -52,6 +52,7 @@ async def async_setup_entry(
             TimerPausedSwitch(coordinator, name),
             AutomaticBrightnessSwitch(coordinator, name),
             MuteSwitch(coordinator, name),
+            AutomaticUpdatesSwitch(coordinator, name),
         ]
     )
 
@@ -220,3 +221,56 @@ class TimerPausedSwitch(BusyBarEntity, SwitchEntity):
                 translation_placeholders={"error": str(err)},
             ) from err
         await self.coordinator.async_request_refresh()
+
+
+class AutomaticUpdatesSwitch(_SettingSwitch):
+    """
+    Whether the bar installs firmware updates by itself.
+
+    Diagnostic rather than configuration: it is a fact about how the bar
+    looks after itself, next to the version it is on, rather than
+    something touched while using it. The bar keeps a window it is allowed
+    to update in - overnight by default - which is left alone here and
+    reported alongside.
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
+        super().__init__(coordinator, name, "automatic_updates")
+
+    def _settings(self):
+        data = self.coordinator.data
+        return None if data is None else data.autoupdate
+
+    @property
+    def is_on(self) -> bool | None:
+        settings = self._settings()
+        return None if settings is None else settings.is_enabled
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        settings = self._settings()
+        if settings is None:
+            return None
+        return {
+            "window_start": settings.interval_start,
+            "window_end": settings.interval_end,
+        }
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._set(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._set(False)
+
+    async def _set(self, enabled: bool) -> None:
+        settings = self._settings()
+        # The bar replaces the whole settings object, so the window has to
+        # be sent back with the flag or it would be reset.
+        payload = types.AutoupdateSettings(
+            is_enabled=enabled,
+            interval_start=None if settings is None else settings.interval_start,
+            interval_end=None if settings is None else settings.interval_end,
+        )
+        await self._write(self.coordinator.client.update_autoupdate_set(payload))
