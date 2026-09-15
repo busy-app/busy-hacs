@@ -269,6 +269,9 @@
       },
       "theme_custom": {
         "name": "Theme custom card"
+      },
+      "timezone": {
+        "name": "Timezone"
       }
     },
     "switch": {
@@ -283,6 +286,9 @@
       },
       "mute": {
         "name": "Volume mute"
+      },
+      "automatic_updates": {
+        "name": "Automatic firmware updates"
       }
     },
     "update": {
