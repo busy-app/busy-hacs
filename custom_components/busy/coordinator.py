@@ -23,8 +23,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 _LOGGER = logging.getLogger(__name__)
 
 # What is polled, because the bar has no push for it: the smart-home
-# switch, the configured brightness, the timezone, and the firmware update
-# state. The interval is what it is because nothing depends on any of them
+# switch, the configured brightness, the firmware update state and the two
+# cards. The interval is what it is because nothing depends on any of them
 # being prompt - the entities people watch during a session are driven by
 # the stream.
 UPDATE_INTERVAL = timedelta(seconds=30)
@@ -90,9 +90,7 @@ class BusyBarData:
     snapshot: DeviceSnapshot
     smart_home: bool
     brightness: str | None = None
-    timezone: str | None = None
     update_status: types.UpdateStatus | None = None
-    autoupdate: types.AutoupdateSettings | None = None
     selector: str | None = None
     cards: dict[str, types.BusyProfile] = field(default_factory=dict)
 
@@ -122,9 +120,7 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
             await asyncio.sleep(0.5)
             switch = (await self.client.smart_home_switch()).state
             brightness = (await self.client.display_brightness()).value
-            timezone = (await self.client.time_timezone_info()).name
             update_status = await self.client.update_status()
-            autoupdate = await self.client.update_autoupdate()
             # The bar's two cards, for the theme each one starts with. The
             # stream does carry a timer_profiles update, so this poll can
             # go once busylib folds that in.
@@ -141,9 +137,7 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
                 self.data,
                 smart_home=switch,
                 brightness=brightness,
-                timezone=timezone,
                 update_status=update_status,
-                autoupdate=autoupdate,
                 cards=cards,
             )
 
@@ -152,9 +146,7 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
             snapshot=snapshot,
             smart_home=switch,
             brightness=brightness,
-            timezone=timezone,
             update_status=update_status,
-            autoupdate=autoupdate,
             cards=cards,
         )
 
@@ -265,7 +257,7 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
         # Power updates arrive every few seconds, so letting the stream
         # reschedule pushed the poll past its interval indefinitely and the
         # polled values - the smart-home switch, the brightness setting,
-        # the timezone - only refreshed when something asked them to.
+        # the brightness setting - only refreshed when something asked.
         self.data = replace(current, snapshot=snapshot, selector=selector)
         self.async_update_listeners()
 
