@@ -51,7 +51,7 @@ async def async_setup_entry(
             TimerModeSensor(coordinator, name),
             TimerPhaseSensor(coordinator, name),
             TimerEndsAtSensor(coordinator, name),
-            SelectorSensor(coordinator, name),
+            SwitchPositionSensor(coordinator, name),
             ThemeSensor(coordinator, name),
             BatterySensor(coordinator, name),
             WifiNetworkSensor(coordinator, name),
@@ -348,9 +348,9 @@ class BluetoothSensor(BusyBarEntity, SensorEntity):
         return status if status in self._attr_options else "unknown"
 
 
-class SelectorSensor(BusyBarEntity, SensorEntity):
+class SwitchPositionSensor(BusyBarEntity, SensorEntity):
     """
-    Where the bar's selector is pointing.
+    Where the bar's switch is pointing.
 
     Read-only, because moving it is five buttons that each say what they
     do. The bar reports the position only when it changes - nothing
@@ -363,7 +363,7 @@ class SelectorSensor(BusyBarEntity, SensorEntity):
     _attr_options = ["busy", "custom", "off", "apps", "settings"]
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "selector")
+        super().__init__(coordinator, name, "switch_position")
 
     @property
     def native_value(self) -> str | None:
