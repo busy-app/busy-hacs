@@ -52,6 +52,7 @@ async def async_setup_entry(
             TimerModeSensor(coordinator, name),
             TimerPhaseSensor(coordinator, name),
             TimerEndsAtSensor(coordinator, name),
+            SelectorSensor(coordinator, name),
             ThemeSensor(coordinator, name),
             BatterySensor(coordinator, name),
             WifiNetworkSensor(coordinator, name),
@@ -406,3 +407,26 @@ class BluetoothSensor(BusyBarEntity, SensorEntity):
         # is a sentence rather than a state name.
         status = "error" if "error" in status.lower() else status.lower()
         return status if status in self._attr_options else "unknown"
+
+
+class SelectorSensor(BusyBarEntity, SensorEntity):
+    """
+    Where the bar's selector is pointing.
+
+    Read-only, because moving it is five buttons that each say what they
+    do. The bar reports the position only when it changes - nothing
+    answers "where is it now" - so this is unknown until the first move
+    after Home Assistant starts, which is the honest answer rather than a
+    guess.
+    """
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["busy", "custom", "off", "apps", "settings"]
+
+    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
+        super().__init__(coordinator, name, "selector")
+
+    @property
+    def native_value(self) -> str | None:
+        data = self.coordinator.data
+        return None if data is None else data.selector
