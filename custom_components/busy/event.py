@@ -61,11 +61,18 @@ class _BusyBarInputEvent(BusyBarEntity, EventEntity):
     """
     Base for the entities driven by physical input.
 
+    Hidden from dashboards by default: these exist to be triggered on, and
+    "the OK button was last pressed at 14:02" is not something the card
+    for a room should carry. One click shows them for anyone who wants
+    it.
+
     Events arrive on the state stream the coordinator already follows, so
     these cost nothing: the bar sends them whether or not Home Assistant
     is listening. They are announced unthrottled, unlike screen frames -
     a press someone just made is not something to drop.
     """
+
+    _attr_entity_registry_visible_default = False
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
