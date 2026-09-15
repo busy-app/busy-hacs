@@ -266,6 +266,9 @@
       },
       "timer_paused": {
         "name": "Timer paused"
+      },
+      "mute": {
+        "name": "Volume mute"
       }
     },
     "update": {
