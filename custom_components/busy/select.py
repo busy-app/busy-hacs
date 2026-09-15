@@ -27,10 +27,6 @@ async def async_setup_entry(
         name = (await coordinator.client.name()).name
         # The bar's own list, so it stays whatever the firmware ships.
         themes = await timer.themes(coordinator.client)
-        # Fixed for a given firmware build, so read once rather than polled.
-        timezones = [
-            zone.name for zone in (await coordinator.client.time_timezone_list()).list
-        ]
     except BusyBarError as err:
         raise PlatformNotReady(
             f"BUSY Bar {coordinator.device_id} is unreachable"
@@ -40,43 +36,8 @@ async def async_setup_entry(
         [
             ThemeSelect(coordinator, name, "busy", themes),
             ThemeSelect(coordinator, name, "custom", themes),
-            TimezoneSelect(coordinator, name, sorted(timezones)),
         ]
     )
-
-
-class TimezoneSelect(BusyBarEntity, SelectEntity):
-    """
-    Which timezone the bar shows its clock in.
-
-    The bar keeps its own timezone rather than following Home Assistant's,
-    and its clock is on screen all day, so a wrong one is visible and worth
-    being able to fix from here.
-    """
-
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    def __init__(
-        self, coordinator: BusyBarCoordinator, name: str, timezones: list[str]
-    ) -> None:
-        super().__init__(coordinator, name, "timezone")
-        self._attr_options = timezones
-
-    @property
-    def current_option(self) -> str | None:
-        data = self.coordinator.data
-        return None if data is None else data.timezone
-
-    async def async_select_option(self, option: str) -> None:
-        try:
-            await self.coordinator.client.time_timezone(option)
-        except BusyBarError as err:
-            raise HomeAssistantError(
-                translation_domain="busy",
-                translation_key="setting_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
-        await self.coordinator.async_request_refresh()
 
 
 class ThemeSelect(BusyBarEntity, SelectEntity):
