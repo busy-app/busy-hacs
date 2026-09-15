@@ -3,6 +3,7 @@
 Draft integration of the BUSY Bar into Home Assistant.
 
 Discovery works :P
+
 ## Icons for the notify action
 
 The **Show a notification** action draws an icon at the left edge. Eight have
@@ -39,6 +40,7 @@ pixels for it.
 | `dt_sparkls_1` | `dt_sparkls_2` | `dt_study` | `dt_tea` |
 | `dt_tennis` | `dt_toast` | `dt_tomato` | `dt_unavailable` |
 | `dt_work` | `dt_yes` |
+
 ## Volume mute, and why it is not the volume slider set to zero
 
 Setting the volume to zero silences the bar and forgets how loud it was.
