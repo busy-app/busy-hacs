@@ -150,7 +150,7 @@ start_timer:
     device:
       integration: busy
   fields:
-    card:
+    mode:
       default: busy
       selector:
         select:
@@ -158,10 +158,50 @@ start_timer:
           options:
             - busy
             - custom
-    theme:
-      example: meeting
+    duration:
+      example: 25
       selector:
-        text:
+        number:
+          min: 5
+          max: 1440
+          unit_of_measurement: minutes
+          mode: box
+    theme:
+      # The themes the firmware ships; custom_value takes one an owner
+      # uploaded, and busylib checks the name against that bar.
+      selector:
+        select:
+          mode: dropdown
+          custom_value: true
+          options:
+            - back_soon
+            - booked
+            - busy
+            - chill_time
+            - coding
+            - dnd
+            - flow
+            - keep_out
+            - low_social_battery
+            - lunch
+            - meeting
+            - on_air
+            - on_call
+    rest:
+      example: 5
+      selector:
+        number:
+          min: 5
+          max: 1440
+          unit_of_measurement: minutes
+          mode: box
+    cycles:
+      example: 3
+      selector:
+        number:
+          min: 1
+          max: 12
+          mode: box
 
 stop_timer:
   target:
@@ -192,8 +232,24 @@ set_theme:
       required: true
       example: meeting
       selector:
-        text:
-    card:
+        select:
+          mode: dropdown
+          custom_value: true
+          options:
+            - back_soon
+            - booked
+            - busy
+            - chill_time
+            - coding
+            - dnd
+            - flow
+            - keep_out
+            - low_social_battery
+            - lunch
+            - meeting
+            - on_air
+            - on_call
+    mode:
       selector:
         select:
           mode: dropdown
