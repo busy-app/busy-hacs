@@ -346,13 +346,13 @@
           }
         }
       },
-      "wheel": {
-        "name": "Wheel",
+      "scroll": {
+        "name": "Scroll",
         "state_attributes": {
           "event_type": {
             "state": {
-              "clockwise": "Turned clockwise",
-              "counterclockwise": "Turned counterclockwise"
+              "left": "Scrolled left",
+              "right": "Scrolled right"
             }
           }
         }

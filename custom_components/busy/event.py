@@ -24,9 +24,13 @@ _BUTTONS = (("button_ok", "ok"), ("button_back", "back"), ("button_start", "star
 # only thing that distinguishes a long press from a short one.
 _BUTTON_EVENTS = ["press", "release"]
 
-# Which way the wheel went. The distance is an attribute, since an
-# automation almost always wants the direction and rarely the amount.
-_WHEEL_EVENTS = ["clockwise", "counterclockwise"]
+# Which way the scrolling went. The bar reports a signed number of steps
+# from its wheel; the firmware turns a positive one into "focus the next
+# item", which is the selection moving across the screen - so left and
+# right are what a person sees, and what an automation should match on.
+# The distance is an attribute, since an automation almost always wants
+# the direction and rarely the amount.
+_SCROLL_EVENTS = ["left", "right"]
 
 
 async def async_setup_entry(
@@ -48,7 +52,7 @@ async def async_setup_entry(
                 BusyBarButtonEvent(coordinator, name, key, button)
                 for key, button in _BUTTONS
             ),
-            BusyBarWheelEvent(coordinator, name),
+            BusyBarScrollEvent(coordinator, name),
         ]
     )
 
@@ -98,24 +102,26 @@ class BusyBarButtonEvent(_BusyBarInputEvent):
             self.async_write_ha_state()
 
 
-class BusyBarWheelEvent(_BusyBarInputEvent):
+class BusyBarScrollEvent(_BusyBarInputEvent):
     """
-    The wheel on the side of the bar, as it is turned.
+    Scrolling, as someone turns the wheel.
 
-    The bar reports a signed number of steps; the direction is the event
-    and the distance rides along as an attribute, because an automation
-    usually wants "turned right" and only sometimes "by how much".
+    Named for what it does rather than for the part that does it: the
+    wheel can be pressed as well as turned, and what a turn produces is
+    the selection moving sideways. The distance rides along as an
+    attribute, because an automation usually wants "scrolled right" and
+    only sometimes "by how much".
     """
 
-    _attr_event_types = _WHEEL_EVENTS
+    _attr_event_types = _SCROLL_EVENTS
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "wheel")
+        super().__init__(coordinator, name, "scroll")
 
     @callback
     def _arrived(self, event: InputEvent) -> None:
         if not isinstance(event, EncoderEvent) or not event.delta:
             return
-        direction = "clockwise" if event.delta > 0 else "counterclockwise"
+        direction = "right" if event.delta > 0 else "left"
         self._trigger_event(direction, {"steps": abs(event.delta)})
         self.async_write_ha_state()
