@@ -48,11 +48,10 @@ async def async_setup_entry(
 
     async_add_entities(
         [
-            TimerModeSensor(coordinator, name),
-            TimerPhaseSensor(coordinator, name),
-            TimerEndsAtSensor(coordinator, name),
-            SwitchPositionSensor(coordinator, name),
-            ThemeSensor(coordinator, name),
+            SessionTypeSensor(coordinator, name),
+            SessionPhaseSensor(coordinator, name),
+            SessionEndsAtSensor(coordinator, name),
+            SessionThemeSensor(coordinator, name),
             BatterySensor(coordinator, name),
             WifiNetworkSensor(coordinator, name),
             IpAddressSensor(coordinator, name),
@@ -62,7 +61,7 @@ async def async_setup_entry(
             TimezoneSensor(coordinator, name),
         ]
     )
-class _TimerSensor(BusyBarEntity, SensorEntity):
+class _SessionSensor(BusyBarEntity, SensorEntity):
     """
     Base for sensors that read the timer.
     """
@@ -77,14 +76,14 @@ class _TimerSensor(BusyBarEntity, SensorEntity):
         return timer_state(data.snapshot.timer)
 
 
-class TimerModeSensor(_TimerSensor):
+class SessionTypeSensor(_SessionSensor):
     """Which kind of session is running."""
 
     _attr_device_class = SensorDeviceClass.ENUM
     _attr_options = ["not_started", "infinite", "simple", "interval"]
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "timer_mode")
+        super().__init__(coordinator, name, "session_type")
 
     @property
     def native_value(self) -> str | None:
@@ -92,7 +91,7 @@ class TimerModeSensor(_TimerSensor):
         return None if state is None else state.mode
 
 
-class TimerPhaseSensor(_TimerSensor):
+class SessionPhaseSensor(_SessionSensor):
     """
     Work or rest — the thing automations branch on.
 
@@ -104,7 +103,7 @@ class TimerPhaseSensor(_TimerSensor):
     _attr_options = ["work", "rest", "none"]
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "timer_phase")
+        super().__init__(coordinator, name, "session_phase")
 
     @property
     def native_value(self) -> str | None:
@@ -114,7 +113,7 @@ class TimerPhaseSensor(_TimerSensor):
         return state.phase or "none"
 
 
-class TimerEndsAtSensor(_TimerSensor):
+class SessionEndsAtSensor(_SessionSensor):
     """
     When the current phase runs out.
 
@@ -127,7 +126,7 @@ class TimerEndsAtSensor(_TimerSensor):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "timer_ends_at")
+        super().__init__(coordinator, name, "session_phase_ends")
 
     @property
     def native_value(self) -> datetime | None:
@@ -140,7 +139,7 @@ class TimerEndsAtSensor(_TimerSensor):
         return dt_util.utcnow() + timedelta(milliseconds=state.time_left_ms)
 
 
-class ThemeSensor(BusyBarEntity, SensorEntity):
+class SessionThemeSensor(BusyBarEntity, SensorEntity):
     """
     The theme on screen right now.
 
@@ -151,7 +150,7 @@ class ThemeSensor(BusyBarEntity, SensorEntity):
     """
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "theme")
+        super().__init__(coordinator, name, "session_theme")
 
     @property
     def native_value(self) -> str | None:
@@ -347,29 +346,6 @@ class BluetoothSensor(BusyBarEntity, SensorEntity):
         # is a sentence rather than a state name.
         status = "error" if "error" in status.lower() else status.lower()
         return status if status in self._attr_options else "unknown"
-
-
-class SwitchPositionSensor(BusyBarEntity, SensorEntity):
-    """
-    Where the bar's switch is pointing.
-
-    Read-only, because moving it is five buttons that each say what they
-    do. The bar reports the position only when it changes - nothing
-    answers "where is it now" - so this is unknown until the first move
-    after Home Assistant starts, which is the honest answer rather than a
-    guess.
-    """
-
-    _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = ["busy", "custom", "off", "apps", "settings"]
-
-    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "switch_position")
-
-    @property
-    def native_value(self) -> str | None:
-        data = self.coordinator.data
-        return None if data is None else data.selector
 
 
 class TimezoneSensor(BusyBarEntity, SensorEntity):
