@@ -145,7 +145,7 @@ notify:
           selector:
             color_rgb:
 
-start_timer:
+start_session:
   target:
     device:
       integration: busy
@@ -203,17 +203,17 @@ start_timer:
           max: 12
           mode: box
 
-stop_timer:
+stop_session:
   target:
     device:
       integration: busy
 
-pause_timer:
+pause_session:
   target:
     device:
       integration: busy
 
-resume_timer:
+resume_session:
   target:
     device:
       integration: busy
