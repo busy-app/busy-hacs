@@ -37,12 +37,12 @@ from .const import (
     SERVICE_CLEAR,
     SERVICE_NEXT_PHASE,
     SERVICE_NOTIFY,
-    SERVICE_PAUSE_TIMER,
+    SERVICE_PAUSE_SESSION,
     SERVICE_PLAY_SOUND,
-    SERVICE_RESUME_TIMER,
+    SERVICE_RESUME_SESSION,
     SERVICE_SET_THEME,
-    SERVICE_START_TIMER,
-    SERVICE_STOP_TIMER,
+    SERVICE_START_SESSION,
+    SERVICE_STOP_SESSION,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -267,7 +267,7 @@ async def _for_each_bar(call: ServiceCall, work) -> None:
             ) from err
 
 
-async def _async_start_timer(call: ServiceCall) -> None:
+async def _async_start_session(call: ServiceCall) -> None:
     """
     Start the session one of the bar's two cards describes.
     """
@@ -289,7 +289,7 @@ async def _async_start_timer(call: ServiceCall) -> None:
     await _for_each_bar(call, work)
 
 
-async def _async_stop_timer(call: ServiceCall) -> None:
+async def _async_stop_session(call: ServiceCall) -> None:
     """
     End the session. Not the selector's off position, which is the bar's
     do-not-disturb rather than a session ending.
@@ -301,14 +301,14 @@ async def _async_stop_timer(call: ServiceCall) -> None:
     await _for_each_bar(call, work)
 
 
-async def _async_pause_timer(call: ServiceCall) -> None:
+async def _async_pause_session(call: ServiceCall) -> None:
     async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
         await timer.set_paused(client, True)
 
     await _for_each_bar(call, work)
 
 
-async def _async_resume_timer(call: ServiceCall) -> None:
+async def _async_resume_session(call: ServiceCall) -> None:
     async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
         await timer.set_paused(client, False)
 
@@ -378,10 +378,10 @@ def async_register_services(hass: HomeAssistant) -> None:
         DOMAIN, SERVICE_NOTIFY, _async_notify, schema=_NOTIFY_SCHEMA
     )
     for name, handler, schema in (
-        (SERVICE_START_TIMER, _async_start_timer, _START_SCHEMA),
-        (SERVICE_STOP_TIMER, _async_stop_timer, _TARGET_SCHEMA),
-        (SERVICE_PAUSE_TIMER, _async_pause_timer, _TARGET_SCHEMA),
-        (SERVICE_RESUME_TIMER, _async_resume_timer, _TARGET_SCHEMA),
+        (SERVICE_START_SESSION, _async_start_session, _START_SCHEMA),
+        (SERVICE_STOP_SESSION, _async_stop_session, _TARGET_SCHEMA),
+        (SERVICE_PAUSE_SESSION, _async_pause_session, _TARGET_SCHEMA),
+        (SERVICE_RESUME_SESSION, _async_resume_session, _TARGET_SCHEMA),
         (SERVICE_NEXT_PHASE, _async_next_phase, _TARGET_SCHEMA),
         (SERVICE_SET_THEME, _async_set_theme, _SET_THEME_SCHEMA),
         (SERVICE_PLAY_SOUND, _async_play_sound, _PLAY_SOUND_SCHEMA),

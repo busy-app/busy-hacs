@@ -38,14 +38,14 @@ async def async_setup_entry(
 
     async_add_entities(
         [
-            TimerRunningSensor(coordinator, name),
+            SessionRunningSensor(coordinator, name),
             AutomaticUpdatesSensor(coordinator, name),
             ChargingSensor(coordinator, name),
         ]
     )
 
 
-class TimerRunningSensor(BusyBarEntity, BinarySensorEntity):
+class SessionRunningSensor(BusyBarEntity, BinarySensorEntity):
     """
     Whether a session is under way, paused included.
 
@@ -55,7 +55,7 @@ class TimerRunningSensor(BusyBarEntity, BinarySensorEntity):
 
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "timer_running")
+        super().__init__(coordinator, name, "session_running")
 
     @property
     def is_on(self) -> bool | None:

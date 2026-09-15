@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from functools import partial
-
 from busylib import types
 from busylib.exceptions import BusyBarError
 from busylib.features import timer
@@ -76,7 +74,6 @@ async def async_setup_entry(
                 for key, input_key in (*_BUTTONS, *_POSITIONS, *_SCROLL)
             ),
             NextPhaseButton(coordinator, name),
-            *(StartButton(coordinator, name, slot) for slot in ("busy", "custom")),
         ]
     )
 
@@ -111,12 +108,12 @@ class BusyBarButton(BusyBarEntity, ButtonEntity):
             ) from err
 
 
-class _TimerButton(BusyBarEntity, ButtonEntity):
+class _SessionButton(BusyBarEntity, ButtonEntity):
     """
-    Base for the buttons that change the session.
+    Base for the buttons that change a running session.
 
-    Both are one-way and take no options, which is what makes them buttons
-    rather than actions - the actions with fields are still there for an
+    One-way and takes no options, which is what makes it a button rather
+    than an action - the actions with fields are still there for an
     automation that needs them.
     """
 
@@ -138,7 +135,7 @@ class _TimerButton(BusyBarEntity, ButtonEntity):
         await self.coordinator.async_request_refresh()
 
 
-class NextPhaseButton(_TimerButton):
+class NextPhaseButton(_SessionButton):
     """
     Move an interval session on to its next phase.
 
@@ -146,28 +143,7 @@ class NextPhaseButton(_TimerButton):
     """
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "next_phase")
+        super().__init__(coordinator, name, "session_next_phase")
 
     async def async_press(self) -> None:
         await self._change(timer.next_phase)
-
-
-class StartButton(_TimerButton):
-    """
-    Start one of the bar's two modes.
-
-    The Session switch starts whichever mode the bar's own switch is set
-    to; these start a named one, which is what an automation wants and
-    what someone looking at a dashboard is choosing between. The mode's
-    own timer decides how long it runs - that is what the numbers in the
-    configuration section are for.
-    """
-
-    def __init__(
-        self, coordinator: BusyBarCoordinator, name: str, slot: types.BusyProfileSlot
-    ) -> None:
-        super().__init__(coordinator, name, f"start_{slot}")
-        self._slot: types.BusyProfileSlot = slot
-
-    async def async_press(self) -> None:
-        await self._change(partial(timer.start, slot=self._slot))
