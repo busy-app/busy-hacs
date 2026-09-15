@@ -10,6 +10,8 @@ from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
+from typing import Any
+
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import PlatformNotReady
@@ -37,6 +39,7 @@ async def async_setup_entry(
     async_add_entities(
         [
             TimerRunningSensor(coordinator, name),
+            AutomaticUpdatesSensor(coordinator, name),
             ChargingSensor(coordinator, name),
         ]
     )
@@ -78,3 +81,38 @@ class ChargingSensor(BusyBarEntity, BinarySensorEntity):
             return None
         state = data.snapshot.power.state
         return None if state is None else state == types.PowerState.CHARGING
+
+
+class AutomaticUpdatesSensor(BusyBarEntity, BinarySensorEntity):
+    """
+    Whether the bar installs firmware updates by itself.
+
+    A reading rather than a switch: it is a fact about how the bar looks
+    after itself, and turning it off from here would be a decision made
+    somewhere the bar's owner is not looking. The window it is allowed to
+    update in - overnight by default - rides along as attributes.
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
+        super().__init__(coordinator, name, "automatic_updates")
+
+    def _settings(self):
+        data = self.coordinator.data
+        return None if data is None else data.autoupdate
+
+    @property
+    def is_on(self) -> bool | None:
+        settings = self._settings()
+        return None if settings is None else settings.is_enabled
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        settings = self._settings()
+        if settings is None:
+            return None
+        return {
+            "window_start": settings.interval_start,
+            "window_end": settings.interval_end,
+        }
