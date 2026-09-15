@@ -217,6 +217,16 @@
           "error": "Error",
           "unknown": "Unknown"
         }
+      },
+      "selector": {
+        "name": "Selector",
+        "state": {
+          "busy": "Busy",
+          "custom": "Custom",
+          "off": "Off",
+          "apps": "Apps",
+          "settings": "Settings"
+        }
       }
     },
     "binary_sensor": {
@@ -238,16 +248,6 @@
     "select": {
       "timezone": {
         "name": "Timezone"
-      },
-      "selector": {
-        "name": "Selector",
-        "state": {
-          "busy": "Busy",
-          "custom": "Custom",
-          "off": "Off",
-          "apps": "Apps",
-          "settings": "Settings"
-        }
       },
       "theme_busy": {
         "name": "Theme busy card"
@@ -290,6 +290,27 @@
       },
       "stop_timer": {
         "name": "Timer stop"
+      },
+      "selector_busy": {
+        "name": "Selector to Busy"
+      },
+      "selector_custom": {
+        "name": "Selector to Custom"
+      },
+      "selector_off": {
+        "name": "Selector to Off"
+      },
+      "selector_apps": {
+        "name": "Selector to Apps"
+      },
+      "selector_settings": {
+        "name": "Selector to Settings"
+      },
+      "wheel_up": {
+        "name": "Wheel up"
+      },
+      "wheel_down": {
+        "name": "Wheel down"
       }
     },
     "image": {
