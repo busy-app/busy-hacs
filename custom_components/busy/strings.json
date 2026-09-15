@@ -194,17 +194,6 @@
       "wifi_network": {
         "name": "Wi-Fi network"
       },
-      "wifi_signal": {
-        "name": "Wi-Fi signal",
-        "state": {
-          "weak": "Weak",
-          "medium": "Medium",
-          "strong": "Strong"
-        }
-      },
-      "wifi_signal_strength": {
-        "name": "Wi-Fi signal strength"
-      },
       "ip_address": {
         "name": "IP address"
       },
@@ -234,9 +223,6 @@
       },
       "charging": {
         "name": "Battery charging"
-      },
-      "external_power": {
-        "name": "Battery USB power"
       }
     },
     "number": {
@@ -274,9 +260,6 @@
       },
       "automatic_brightness": {
         "name": "Brightness automatic"
-      },
-      "mute": {
-        "name": "Volume mute"
       },
       "automatic_updates": {
         "name": "Automatic firmware updates"
