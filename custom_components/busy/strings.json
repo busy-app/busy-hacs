@@ -265,19 +265,37 @@
       },
       "volume": {
         "name": "Volume"
+      },
+      "busy_work": {
+        "name": "Busy work"
+      },
+      "busy_rest": {
+        "name": "Busy rest"
+      },
+      "busy_cycles": {
+        "name": "Busy cycles"
+      },
+      "custom_work": {
+        "name": "Custom work"
+      },
+      "custom_rest": {
+        "name": "Custom rest"
+      },
+      "custom_cycles": {
+        "name": "Custom cycles"
       }
     },
     "select": {
       "theme_busy": {
-        "name": "Theme busy card"
+        "name": "Busy theme"
       },
       "theme_custom": {
-        "name": "Theme custom card"
+        "name": "Custom theme"
       }
     },
     "switch": {
       "smart_home_switch": {
-        "name": "Smart home switch"
+        "name": "Session"
       },
       "automatic_brightness": {
         "name": "Brightness automatic"
@@ -307,9 +325,6 @@
       "next_phase": {
         "name": "Next phase"
       },
-      "stop_timer": {
-        "name": "End session"
-      },
       "switch_busy": {
         "name": "Switch to Busy"
       },
@@ -330,6 +345,12 @@
       },
       "scroll_right": {
         "name": "Scroll right"
+      },
+      "start_busy": {
+        "name": "Busy start"
+      },
+      "start_custom": {
+        "name": "Custom start"
       }
     },
     "image": {

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import partial
+
 from busylib import types
 from busylib.exceptions import BusyBarError
 from busylib.features import timer
@@ -74,7 +76,7 @@ async def async_setup_entry(
                 for key, input_key in (*_BUTTONS, *_POSITIONS, *_SCROLL)
             ),
             NextPhaseButton(coordinator, name),
-            StopTimerButton(coordinator, name),
+            *(StartButton(coordinator, name, slot) for slot in ("busy", "custom")),
         ]
     )
 
@@ -150,16 +152,22 @@ class NextPhaseButton(_TimerButton):
         await self._change(timer.next_phase)
 
 
-class StopTimerButton(_TimerButton):
+class StartButton(_TimerButton):
     """
-    End the session.
+    Start one of the bar's two modes.
 
-    Not the selector's off position, which is the bar's do-not-disturb:
-    this puts the session back to not started.
+    The Session switch starts whichever mode the bar's own switch is set
+    to; these start a named one, which is what an automation wants and
+    what someone looking at a dashboard is choosing between. The mode's
+    own timer decides how long it runs - that is what the numbers in the
+    configuration section are for.
     """
 
-    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "stop_timer")
+    def __init__(
+        self, coordinator: BusyBarCoordinator, name: str, slot: types.BusyProfileSlot
+    ) -> None:
+        super().__init__(coordinator, name, f"start_{slot}")
+        self._slot: types.BusyProfileSlot = slot
 
     async def async_press(self) -> None:
-        await self._change(timer.stop)
+        await self._change(partial(timer.start, slot=self._slot))
