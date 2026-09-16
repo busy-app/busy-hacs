@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from functools import partial
-
 from busylib import types
 from busylib.exceptions import BusyBarError
 from busylib.features import timer
@@ -13,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, PlatformNotReady
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .coordinator import QUICK_SLOT, BusyBarConfigEntry, BusyBarCoordinator
+from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
 from .entity import PARALLEL_UPDATES, BusyBarEntity
 
 __all__ = ["PARALLEL_UPDATES", "async_setup_entry"]
@@ -76,14 +74,6 @@ async def async_setup_entry(
                 for key, input_key in (*_BUTTONS, *_POSITIONS, *_SCROLL)
             ),
             NextPhaseButton(coordinator, name),
-            *(
-                StartSessionButton(coordinator, name, slot)
-                for slot in ("busy", "custom")
-            ),
-            *(
-                QuickSessionButton(coordinator, name, kind)
-                for kind in ("infinite", "simple", "interval")
-            ),
         ]
     )
 
@@ -165,79 +155,3 @@ class NextPhaseButton(_SessionButton):
 
     async def async_press(self) -> None:
         await self._change(timer.next_phase)
-
-
-class StartSessionButton(_SessionButton):
-    """
-    Start the session one of the bar's two cards describes.
-
-    The same thing the matching switch does, as a button, because a
-    dashboard card and an automation usually want "start this" and not a
-    state to hold: a button says so in one word and reads well next to the
-    quick-start ones below.
-    """
-
-    def __init__(
-        self, coordinator: BusyBarCoordinator, name: str, slot: types.BusyProfileSlot
-    ) -> None:
-        super().__init__(coordinator, name, f"session_start_{slot}")
-        self._slot: types.BusyProfileSlot = slot
-
-    async def async_press(self) -> None:
-        await self._change(partial(timer.start, slot=self._slot))
-
-
-class QuickSessionButton(_SessionButton):
-    """
-    Start a session of one kind, without touching either card.
-
-    The two cards belong to their owner: they are what the bar's own
-    switch runs and what the BUSY app shows, and wanting a countdown of
-    forty-five minutes this once should not rewrite one of them. So these
-    start a session carrying its own kind and lengths - taken from the
-    numbers beside them, which an automation can set first - and both
-    cards stay as they were.
-
-    The session still names a card, since that is what the app shows it
-    under, and the switches follow it the way they follow any session.
-    """
-
-    def __init__(
-        self, coordinator: BusyBarCoordinator, name: str, kind: timer.TimerKind
-    ) -> None:
-        super().__init__(coordinator, name, f"session_start_{kind}")
-        self._kind: timer.TimerKind = kind
-
-    async def async_press(self) -> None:
-        quick = self.coordinator.quick
-        interval = self._kind == "interval"
-        try:
-            await timer.start(
-                self.coordinator.client,
-                QUICK_SLOT,
-                kind=self._kind,
-                duration_ms=(
-                    None
-                    if self._kind == "infinite"
-                    else (quick.work_minutes if interval else quick.simple_minutes)
-                    * 60_000
-                ),
-                rest_ms=quick.rest_minutes * 60_000 if interval else None,
-                cycles=quick.cycles if interval else None,
-            )
-        except (timer.PhaseTooShortError, ValueError) as err:
-            # The bar answers a length it will not run with a parse error
-            # about the whole snapshot, so this is the only place the
-            # reason is legible.
-            raise HomeAssistantError(
-                translation_domain="busy",
-                translation_key="phase_too_short",
-                translation_placeholders={"error": str(err)},
-            ) from err
-        except BusyBarError as err:
-            raise HomeAssistantError(
-                translation_domain="busy",
-                translation_key="timer_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
-        await self.coordinator.async_request_refresh()

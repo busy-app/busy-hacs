@@ -178,7 +178,7 @@ class SimpleLengthNumber(_QuickNumber):
     _attr_native_unit_of_measurement = UnitOfTime.MINUTES
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "session_simple_length", "simple_minutes")
+        super().__init__(coordinator, name, "quick_timer_simple", "simple_minutes")
 
 
 class WorkNumber(_QuickNumber):
@@ -195,7 +195,7 @@ class WorkNumber(_QuickNumber):
     _attr_native_unit_of_measurement = UnitOfTime.MINUTES
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "session_interval_work", "work_minutes")
+        super().__init__(coordinator, name, "quick_timer_interval_work", "work_minutes")
 
 
 class RestNumber(_QuickNumber):
@@ -212,7 +212,7 @@ class RestNumber(_QuickNumber):
     _attr_native_unit_of_measurement = UnitOfTime.MINUTES
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "session_interval_rest", "rest_minutes")
+        super().__init__(coordinator, name, "quick_timer_interval_rest", "rest_minutes")
 
 
 class CyclesNumber(_QuickNumber):
@@ -224,4 +224,4 @@ class CyclesNumber(_QuickNumber):
     _attr_native_max_value = timer.MAXIMUM_CYCLES
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "session_interval_cycles", "cycles")
+        super().__init__(coordinator, name, "quick_timer_interval_cycles", "cycles")
