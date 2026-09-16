@@ -111,7 +111,7 @@ class TimerKindSelect(BusyBarEntity, SelectEntity):
     """
 
     _attr_entity_category = EntityCategory.CONFIG
-    _attr_options = ["endless", "countdown", "pomodoro"]
+    _attr_options = ["off", "simple", "pomodoro"]
 
     def __init__(
         self, coordinator: BusyBarCoordinator, name: str, slot: types.BusyProfileSlot

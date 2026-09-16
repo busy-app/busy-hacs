@@ -102,7 +102,7 @@ _START_SCHEMA = _TARGET_SCHEMA.extend(
         # Endless, a countdown or a pomodoro. Given, the mode's timer
         # becomes that kind before the session starts, which is what makes
         # "run a countdown for forty minutes" one call rather than three.
-        vol.Optional("kind"): vol.In(("endless", "countdown", "pomodoro")),
+        vol.Optional("kind"): vol.In(("off", "simple", "pomodoro")),
         # A theme here belongs to this session only; the card keeps its own.
         vol.Optional("theme"): cv.string,
         # These do outlast the session. A session cannot carry a length of

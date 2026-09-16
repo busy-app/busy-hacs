@@ -159,13 +159,13 @@ start_session:
             - busy
             - custom
     kind:
-      example: countdown
+      example: simple
       selector:
         select:
           mode: dropdown
           options:
-            - endless
-            - countdown
+            - off
+            - simple
             - pomodoro
     duration:
       example: 25
