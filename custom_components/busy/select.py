@@ -36,7 +36,6 @@ async def async_setup_entry(
         [
             ThemeSelect(coordinator, name, "busy", themes),
             ThemeSelect(coordinator, name, "custom", themes),
-            *(TimerKindSelect(coordinator, name, slot) for slot in ("busy", "custom")),
         ]
     )
 
@@ -89,47 +88,6 @@ class ThemeSelect(BusyBarEntity, SelectEntity):
                 # Offered from this list, so it needs no second opinion.
                 known=self._attr_options,
             )
-        except BusyBarError as err:
-            raise HomeAssistantError(
-                translation_domain="busy",
-                translation_key="setting_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
-        await self.coordinator.async_request_refresh()
-
-
-class TimerKindSelect(BusyBarEntity, SelectEntity):
-    """
-    What kind of timer this mode runs.
-
-    Changing it is what makes the mode's other settings apply: a mode
-    running endlessly has no phases and no cycles, so its work, rest and
-    cycles sit unavailable until it becomes a pomodoro. Changing the kind
-    replaces the mode's timer - there is nothing to carry from a timer
-    that had no lengths - so a mode coming back to pomodoro starts from
-    sensible defaults rather than from what it had long ago.
-    """
-
-    _attr_entity_category = EntityCategory.CONFIG
-    _attr_options = ["endless", "countdown", "pomodoro"]
-
-    def __init__(
-        self, coordinator: BusyBarCoordinator, name: str, slot: types.BusyProfileSlot
-    ) -> None:
-        super().__init__(coordinator, name, f"{slot}_timer_kind")
-        self._slot: types.BusyProfileSlot = slot
-
-    @property
-    def current_option(self) -> str | None:
-        data = self.coordinator.data
-        if data is None:
-            return None
-        card = data.cards.get(self._slot)
-        return None if card is None else timer.kind_of(card.timer_settings)
-
-    async def async_select_option(self, option: str) -> None:
-        try:
-            await timer.configure(self.coordinator.client, self._slot, kind=option)
         except BusyBarError as err:
             raise HomeAssistantError(
                 translation_domain="busy",

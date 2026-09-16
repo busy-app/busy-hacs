@@ -159,19 +159,19 @@ start_session:
             - busy
             - custom
     kind:
-      example: countdown
+      example: simple
       selector:
         select:
           mode: dropdown
           options:
-            - endless
-            - countdown
-            - pomodoro
+            - infinite
+            - simple
+            - interval
     duration:
       example: 25
       selector:
         number:
-          min: 5
+          min: 1
           max: 1440
           unit_of_measurement: minutes
           mode: box
@@ -201,15 +201,15 @@ start_session:
       selector:
         number:
           min: 5
-          max: 1440
+          max: 480
           unit_of_measurement: minutes
           mode: box
     cycles:
       example: 3
       selector:
         number:
-          min: 1
-          max: 12
+          min: 2
+          max: 35
           mode: box
 
 stop_session:
