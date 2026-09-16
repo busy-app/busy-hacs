@@ -55,28 +55,6 @@ _FRAME_INTERVAL = 1.0
 _RECONNECT_DELAY = 5.0
 
 
-def _selector_position(updates: list[object]) -> str | None:
-    """
-    The selector position, if one of these updates reported a change.
-
-    The bar reports the position only when it moves - there is no endpoint
-    that answers "where is the selector now" - so this is the only source,
-    and the position is unknown until the first move after a restart.
-    """
-    for update in updates:
-        if not isinstance(update, dict):
-            continue
-        event = update.get("input")
-        if not isinstance(event, dict):
-            continue
-        switch = event.get("switch_event")
-        if isinstance(switch, dict):
-            position = switch.get("position")
-            if isinstance(position, str):
-                return position.lower()
-    return None
-
-
 # Which card a quick session names. A snapshot has to name one - it is
 # what the BUSY app shows the session under - and the custom position is
 # the one whose card is understood to be the flexible one. Nothing about
