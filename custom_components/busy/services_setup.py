@@ -95,6 +95,10 @@ _START_SCHEMA = _TARGET_SCHEMA.extend(
         # "Mode" is what the bar's two positions are called; `card` is what
         # the API calls the thing each one points at.
         vol.Optional("mode", default="busy"): _SLOT,
+        # Endless, a countdown or a pomodoro. Given, the mode's timer
+        # becomes that kind before the session starts, which is what makes
+        # "run a countdown for forty minutes" one call rather than three.
+        vol.Optional("kind"): vol.In(("endless", "countdown", "pomodoro")),
         # A theme here belongs to this session only; the card keeps its own.
         vol.Optional("theme"): cv.string,
         # These do outlast the session. A session cannot carry a length of
@@ -274,15 +278,18 @@ async def _async_start_session(call: ServiceCall) -> None:
 
     async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
         mode = data["mode"]
-        minutes = ("duration", "rest")
-        if any(data.get(field) is not None for field in (*minutes, "cycles")):
+        wanted = ("kind", "duration", "rest", "cycles")
+        if any(data.get(field) is not None for field in wanted):
+            # The library puts the duration where that kind of timer keeps
+            # it, so this does not have to know whether the mode runs a
+            # countdown or a pomodoro.
             await timer.configure(
                 client,
                 mode,
-                work_ms=_ms(data.get("duration")),
+                kind=data.get("kind"),
+                duration_ms=_ms(data.get("duration")),
                 rest_ms=_ms(data.get("rest")),
                 cycles=data.get("cycles"),
-                total_ms=None,
             )
         await timer.start(client, mode, theme=data.get("theme"))
 

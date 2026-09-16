@@ -144,7 +144,7 @@
     },
     "start_session": {
       "name": "Start a session",
-      "description": "Starts the timer of one of the bar's two modes. Giving a duration changes that mode's timer on the bar, which the bar and the BUSY app will both show - a session cannot carry a length of its own.",
+      "description": "Starts a session on one of the bar's two modes. A kind and a duration change that mode's timer first, which the bar and the BUSY app will both show - a session cannot carry a length of its own.",
       "fields": {
         "mode": {
           "name": "Mode",
@@ -165,6 +165,10 @@
         "cycles": {
           "name": "Cycles",
           "description": "How many work phases the session runs. Saved to the mode."
+        },
+        "kind": {
+          "name": "Kind",
+          "description": "Endless, a countdown, or a pomodoro. Given, the mode's timer becomes that kind before the session starts - so a countdown for forty minutes is one action, not three steps."
         }
       }
     },
