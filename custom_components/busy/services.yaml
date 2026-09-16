@@ -73,30 +73,94 @@ notify:
           selector:
             color_rgb:
 
-start_session:
+start_busy:
   target:
     device:
       integration: busy
   fields:
-    mode:
-      default: busy
+    theme:
+      # The themes the firmware ships; custom_value takes one an owner
+      # uploaded, and busylib checks the name against that bar.
       selector:
         select:
           mode: dropdown
+          custom_value: true
           options:
+            - back_soon
+            - booked
             - busy
-            - custom
-    kind:
-      example: simple
+            - chill_time
+            - coding
+            - dnd
+            - flow
+            - keep_out
+            - low_social_battery
+            - lunch
+            - meeting
+            - on_air
+            - on_call
+
+start_custom:
+  target:
+    device:
+      integration: busy
+  fields:
+    theme:
+      # The themes the firmware ships; custom_value takes one an owner
+      # uploaded, and busylib checks the name against that bar.
       selector:
         select:
           mode: dropdown
+          custom_value: true
           options:
-            - infinite
-            - simple
-            - interval
+            - back_soon
+            - booked
+            - busy
+            - chill_time
+            - coding
+            - dnd
+            - flow
+            - keep_out
+            - low_social_battery
+            - lunch
+            - meeting
+            - on_air
+            - on_call
+
+start_quick_infinite:
+  target:
+    device:
+      integration: busy
+  fields:
+    theme:
+      # The themes the firmware ships; custom_value takes one an owner
+      # uploaded, and busylib checks the name against that bar.
+      selector:
+        select:
+          mode: dropdown
+          custom_value: true
+          options:
+            - back_soon
+            - booked
+            - busy
+            - chill_time
+            - coding
+            - dnd
+            - flow
+            - keep_out
+            - low_social_battery
+            - lunch
+            - meeting
+            - on_air
+            - on_call
+
+start_quick_simple:
+  target:
+    device:
+      integration: busy
+  fields:
     duration:
-      example: 25
+      example: 45
       selector:
         number:
           min: 1
@@ -124,6 +188,20 @@ start_session:
             - meeting
             - on_air
             - on_call
+
+start_quick_interval:
+  target:
+    device:
+      integration: busy
+  fields:
+    work:
+      example: 25
+      selector:
+        number:
+          min: 5
+          max: 480
+          unit_of_measurement: minutes
+          mode: box
     rest:
       example: 5
       selector:
@@ -133,12 +211,34 @@ start_session:
           unit_of_measurement: minutes
           mode: box
     cycles:
-      example: 3
+      example: 4
       selector:
         number:
           min: 2
           max: 35
           mode: box
+    theme:
+      # The themes the firmware ships; custom_value takes one an owner
+      # uploaded, and busylib checks the name against that bar.
+      selector:
+        select:
+          mode: dropdown
+          custom_value: true
+          options:
+            - back_soon
+            - booked
+            - busy
+            - chill_time
+            - coding
+            - dnd
+            - flow
+            - keep_out
+            - low_social_battery
+            - lunch
+            - meeting
+            - on_air
+            - on_call
+
 
 stop_session:
   target:

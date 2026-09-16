@@ -12,7 +12,11 @@ DEFAULT_DURATION = 10
 MAX_DURATION = 120
 
 SERVICE_NOTIFY = "notify"
-SERVICE_START_SESSION = "start_session"
+SERVICE_START_BUSY = "start_busy"
+SERVICE_START_CUSTOM = "start_custom"
+SERVICE_START_QUICK_INFINITE = "start_quick_infinite"
+SERVICE_START_QUICK_SIMPLE = "start_quick_simple"
+SERVICE_START_QUICK_INTERVAL = "start_quick_interval"
 SERVICE_STOP_SESSION = "stop_session"
 SERVICE_PAUSE_SESSION = "pause_session"
 SERVICE_RESUME_SESSION = "resume_session"

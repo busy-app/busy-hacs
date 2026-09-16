@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from busylib import types
 from busylib.exceptions import BusyBarError
 from busylib.features import timer
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError, PlatformNotReady
+from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
 from .entity import PARALLEL_UPDATES, BusyBarEntity
@@ -34,20 +34,23 @@ async def async_setup_entry(
 
     async_add_entities(
         [
-            ThemeSelect(coordinator, name, "busy", themes),
-            ThemeSelect(coordinator, name, "custom", themes),
+            QuickThemeSelect(coordinator, name, kind, themes)
+            for kind in ("infinite", "simple", "interval")
         ]
     )
 
 
-class ThemeSelect(BusyBarEntity, SelectEntity):
+class QuickThemeSelect(BusyBarEntity, RestoreEntity, SelectEntity):
     """
-    The theme one of the bar's cards starts with.
+    What a quick session of one kind looks like on the bar.
 
-    A card's theme, not the running session's: this is the lasting choice,
-    and it does not change what is on screen right now. To change a
-    session already running, use the `set_theme` action - the bar treats
-    that as temporary and returns to the card's theme when it ends.
+    A theme per kind, because that is the difference a person wants to
+    see across the room: a countdown for a meeting and an endless do-not-
+    disturb should not look the same.
+
+    Kept in Home Assistant, like the lengths beside it, and sent with the
+    session. The bar's own two cards each keep their own theme, set on the
+    bar or in the BUSY app, and nothing here touches them.
     """
 
     _attr_entity_category = EntityCategory.CONFIG
@@ -56,42 +59,23 @@ class ThemeSelect(BusyBarEntity, SelectEntity):
         self,
         coordinator: BusyBarCoordinator,
         name: str,
-        slot: types.BusyProfileSlot,
+        kind: timer.TimerKind,
         themes: list[str],
     ) -> None:
-        super().__init__(coordinator, name, f"theme_{slot}")
-        self._slot: types.BusyProfileSlot = slot
+        super().__init__(coordinator, name, f"quick_theme_{kind}")
+        self._kind: timer.TimerKind = kind
         self._attr_options = themes
 
     @property
     def current_option(self) -> str | None:
-        data = self.coordinator.data
-        if data is None:
-            return None
-        card = data.cards.get(self._slot)
-        if card is None:
-            return None
-        theme = card.busy_bar_settings.theme
-        # A theme set on the bar after this list was read - by its owner,
-        # or by an upload - would otherwise be a state Home Assistant
-        # refuses to display.
-        if theme and theme not in (self._attr_options or []):
-            self._attr_options = sorted({*(self._attr_options or []), theme})
-        return theme
+        return self.coordinator.quick.themes.get(self._kind)
 
     async def async_select_option(self, option: str) -> None:
-        try:
-            await timer.set_card_theme(
-                self.coordinator.client,
-                self._slot,
-                option,
-                # Offered from this list, so it needs no second opinion.
-                known=self._attr_options,
-            )
-        except BusyBarError as err:
-            raise HomeAssistantError(
-                translation_domain="busy",
-                translation_key="setting_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
-        await self.coordinator.async_request_refresh()
+        self.coordinator.quick.themes[self._kind] = option
+        self.async_write_ha_state()
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        restored = await self.async_get_last_state()
+        if restored is not None and restored.state in (self._attr_options or []):
+            self.coordinator.quick.themes[self._kind] = restored.state

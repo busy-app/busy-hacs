@@ -74,28 +74,38 @@ def _selector_position(updates: list[object]) -> str | None:
     return None
 
 
-# Which card a quick session names. A snapshot has to name one - it is
-# what the BUSY app shows the session under - and the custom position is
-# the one whose card is understood to be the flexible one. Nothing about
-# that card is written: it only lends its name.
-QUICK_SLOT: types.BusyProfileSlot = "custom"
+# The card a quick session names. A snapshot has to name one, and this is
+# deliberately neither of the bar's two: the bar holds a card per switch
+# position, the BUSY app holds more, and naming one of the others means a
+# quick session cannot disturb either position - not even by name. The
+# app shows the session under that card, which is how a person can see
+# where it came from.
+QUICK_CARD_ID = "00000000-0000-0000-0000-000000000003"
 
 
 @dataclass
 class QuickSession:
     """
-    The lengths the quick-start buttons use, kept in Home Assistant.
+    What the quick switches run, kept in Home Assistant.
 
-    Not on the bar: writing them there would change one of the two cards,
-    which is the thing these buttons exist to avoid. So they live here,
-    are shown as numbers, and are read when a button is pressed - which
-    also means an automation can set one and press the other.
+    Not on the bar: writing any of it there would change one of the two
+    cards, which is the thing the quick switches exist to avoid. So it
+    lives here, is shown as themes and numbers, and is read when a switch
+    is turned on - which also means an automation can set one and flip
+    the other.
     """
 
     simple_minutes: int = 45
     work_minutes: int = 25
     rest_minutes: int = 5
     cycles: int = 4
+    themes: dict[str, str] = field(
+        default_factory=lambda: {
+            "infinite": "busy",
+            "simple": "busy",
+            "interval": "busy",
+        }
+    )
 
 
 @dataclass(frozen=True)
