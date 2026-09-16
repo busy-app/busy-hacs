@@ -86,28 +86,31 @@ _TARGET_SCHEMA = vol.Schema(
 _SLOT = vol.In(("busy", "custom"))
 
 # Durations are minutes in the action and milliseconds on the wire:
-# nobody writes a pomodoro in milliseconds, and the bar takes nothing
-# shorter than five minutes anyway.
+# nobody writes a session length in milliseconds. The bounds are the
+# firmware's own - a countdown up to a day, a phase 5 minutes to 8 hours -
+# and busylib checks them again before the write, since the bar reports a
+# length it will not run as an unparseable snapshot.
 _MINUTES = vol.All(vol.Coerce(int), vol.Range(min=1, max=24 * 60))
+_PHASE = vol.All(vol.Coerce(int), vol.Range(min=5, max=8 * 60))
 
 _START_SCHEMA = _TARGET_SCHEMA.extend(
     {
         # "Mode" is what the bar's two positions are called; `card` is what
         # the API calls the thing each one points at.
         vol.Optional("mode", default="busy"): _SLOT,
-        # Endless, a countdown or a pomodoro. Given, the mode's timer
-        # becomes that kind before the session starts, which is what makes
-        # "run a countdown for forty minutes" one call rather than three.
-        vol.Optional("kind"): vol.In(("off", "simple", "pomodoro")),
+        # The firmware's own words for the three kinds. Given, the
+        # session runs as that kind whatever the card holds, which is what
+        # makes "run a countdown for forty minutes" one call.
+        vol.Optional("kind"): vol.In(("infinite", "simple", "interval")),
         # A theme here belongs to this session only; the card keeps its own.
         vol.Optional("theme"): cv.string,
-        # These do outlast the session. A session cannot carry a length of
-        # its own - the device rejects a snapshot that disagrees with its
-        # card - so asking for one writes the card, and the bar and the
-        # phone app see the change. Left out, the card is not touched.
+        # These belong to the session, not to the card: they travel in
+        # the snapshot, so an automation that runs a 45-minute countdown
+        # every morning leaves both cards as their owner arranged them.
+        # Left out, the session takes the card's own settings.
         vol.Optional("duration"): _MINUTES,
-        vol.Optional("rest"): _MINUTES,
-        vol.Optional("cycles"): vol.All(vol.Coerce(int), vol.Range(min=1, max=12)),
+        vol.Optional("rest"): _PHASE,
+        vol.Optional("cycles"): vol.All(vol.Coerce(int), vol.Range(min=2, max=35)),
     }
 )
 
@@ -281,25 +284,24 @@ async def _for_each_bar(call: ServiceCall, work) -> None:
 
 async def _async_start_session(call: ServiceCall) -> None:
     """
-    Start the session one of the bar's two cards describes.
+    Start a session, with settings of its own if the call gives any.
+
+    Nothing here is written to the bar's cards. An automation that runs a
+    forty-five minute countdown every morning should leave the two cards
+    exactly as their owner arranged them - so the lengths travel in the
+    session instead, and the card only lends it a name and a theme.
     """
 
     async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
-        mode = data["mode"]
-        wanted = ("kind", "duration", "rest", "cycles")
-        if any(data.get(field) is not None for field in wanted):
-            # The library puts the duration where that kind of timer keeps
-            # it, so this does not have to know whether the mode runs a
-            # countdown or a pomodoro.
-            await timer.configure(
-                client,
-                mode,
-                kind=data.get("kind"),
-                duration_ms=_ms(data.get("duration")),
-                rest_ms=_ms(data.get("rest")),
-                cycles=data.get("cycles"),
-            )
-        await timer.start(client, mode, theme=data.get("theme"))
+        await timer.start(
+            client,
+            data["mode"],
+            kind=data.get("kind"),
+            duration_ms=_ms(data.get("duration")),
+            rest_ms=_ms(data.get("rest")),
+            cycles=data.get("cycles"),
+            theme=data.get("theme"),
+        )
 
     await _for_each_bar(call, work)
 

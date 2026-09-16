@@ -74,6 +74,30 @@ def _selector_position(updates: list[object]) -> str | None:
     return None
 
 
+# Which card a quick session names. A snapshot has to name one - it is
+# what the BUSY app shows the session under - and the custom position is
+# the one whose card is understood to be the flexible one. Nothing about
+# that card is written: it only lends its name.
+QUICK_SLOT: types.BusyProfileSlot = "custom"
+
+
+@dataclass
+class QuickSession:
+    """
+    The lengths the quick-start buttons use, kept in Home Assistant.
+
+    Not on the bar: writing them there would change one of the two cards,
+    which is the thing these buttons exist to avoid. So they live here,
+    are shown as numbers, and are read when a button is pressed - which
+    also means an automation can set one and press the other.
+    """
+
+    simple_minutes: int = 45
+    work_minutes: int = 25
+    rest_minutes: int = 5
+    cycles: int = 4
+
+
 @dataclass(frozen=True)
 class BusyBarData:
     """
@@ -111,6 +135,7 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
         )
         self.client = client
         self.device_id = device_id
+        self.quick = QuickSession()
         self._stream: asyncio.Task[None] | None = None
         self._frame_listeners: list[Callable[[], None]] = []
         self._frame_announced = 0.0

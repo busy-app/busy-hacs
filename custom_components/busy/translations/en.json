@@ -61,7 +61,7 @@
       "message": "This bar has no theme called {theme}. It has: {available}."
     },
     "phase_too_short": {
-      "message": "The bar ignores phases shorter than five minutes and keeps what it had: {error}"
+      "message": "The bar will not run a session of that length: {error}"
     },
     "invalid_timer_request": {
       "message": "That does not fit the mode's timer: {error}"
@@ -144,31 +144,31 @@
     },
     "start_session": {
       "name": "Start a session",
-      "description": "Starts a session on one of the bar's two modes. A kind and a duration change that mode's timer first, which the bar and the BUSY app will both show - a session cannot carry a length of its own.",
+      "description": "Starts a session on the bar. With a kind or a duration it runs those instead of what the mode's card holds, and neither card is changed - which is what an automation wants.",
       "fields": {
         "mode": {
           "name": "Mode",
-          "description": "Which of the bar's two modes to start, BUSY or CUSTOM."
+          "description": "Which mode's card the session is shown under, BUSY or CUSTOM. Without a kind or a duration, the session is the one that card describes."
         },
         "theme": {
           "name": "Theme",
-          "description": "Show this session in a different theme. The mode keeps its own, which the bar returns to when the session ends."
+          "description": "Show this session in a different theme. The card keeps its own, which the bar returns to when the session ends."
         },
         "duration": {
           "name": "Duration",
-          "description": "Minutes of work, or the whole countdown for a countdown mode. Saved to the mode, since a session cannot have a length of its own. The bar ignores anything under five minutes."
+          "description": "Minutes of work, or the whole countdown for a countdown session. A countdown may be any length up to 24 hours; a work phase runs 5 minutes to 8 hours."
         },
         "rest": {
           "name": "Rest",
-          "description": "Minutes of rest between work phases. Saved to the mode, and also at least five minutes."
+          "description": "Minutes of rest between work phases, 5 minutes to 8 hours. The bar refuses shorter breaks, so a 5/1 session is not possible."
         },
         "cycles": {
           "name": "Cycles",
-          "description": "How many work phases the session runs. Saved to the mode."
+          "description": "How many work phases the session runs, between 2 and 35."
         },
         "kind": {
           "name": "Kind",
-          "description": "Off, Simple or Pomodoro - the words the BUSY app uses. Given, the mode's timer becomes that kind before the session starts, so a simple timer for forty minutes is one action rather than three steps."
+          "description": "Infinite, Simple or Interval - the firmware's own words. The session runs as that kind whatever the card holds, and the card is left alone."
         }
       }
     },
@@ -223,8 +223,8 @@
         "state": {
           "not_started": "Not started",
           "infinite": "Infinite",
-          "simple": "Countdown",
-          "interval": "Pomodoro"
+          "simple": "Simple",
+          "interval": "Interval"
         }
       },
       "session_phase": {
@@ -266,23 +266,17 @@
       "volume": {
         "name": "Volume"
       },
-      "busy_work": {
-        "name": "Busy timer work"
+      "session_simple_length": {
+        "name": "Session Simple length"
       },
-      "busy_rest": {
-        "name": "Busy timer rest"
+      "session_interval_work": {
+        "name": "Session Interval work"
       },
-      "busy_cycles": {
-        "name": "Busy timer cycles"
+      "session_interval_rest": {
+        "name": "Session Interval rest"
       },
-      "custom_work": {
-        "name": "Custom timer work"
-      },
-      "custom_rest": {
-        "name": "Custom timer rest"
-      },
-      "custom_cycles": {
-        "name": "Custom timer cycles"
+      "session_interval_cycles": {
+        "name": "Session Interval cycles"
       }
     },
     "select": {
@@ -291,22 +285,6 @@
       },
       "theme_custom": {
         "name": "Custom theme"
-      },
-      "busy_timer_kind": {
-        "name": "Busy timer kind",
-        "state": {
-          "off": "Off",
-          "simple": "Simple",
-          "pomodoro": "Pomodoro"
-        }
-      },
-      "custom_timer_kind": {
-        "name": "Custom timer kind",
-        "state": {
-          "off": "Off",
-          "simple": "Simple",
-          "pomodoro": "Pomodoro"
-        }
       }
     },
     "switch": {
@@ -364,6 +342,21 @@
       },
       "session_next_phase": {
         "name": "Session next phase"
+      },
+      "session_start_busy": {
+        "name": "Session start Busy"
+      },
+      "session_start_custom": {
+        "name": "Session start Custom"
+      },
+      "session_start_infinite": {
+        "name": "Session start Infinite"
+      },
+      "session_start_simple": {
+        "name": "Session start Simple"
+      },
+      "session_start_interval": {
+        "name": "Session start Interval"
       }
     },
     "image": {
