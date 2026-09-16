@@ -4,6 +4,16 @@ Draft integration of the BUSY Bar into Home Assistant.
 
 Discovery works :P
 
+## What a bar can show and play
+
+Notifications, icons, themes and sounds come from the bar itself - it ships
+with a set of pictures, animations, sounds and themes, and nothing has to be
+uploaded to use them. They are mapped, with the names to pass and how to call
+them, in
+[busylib's stock assets guide](https://busy-app.github.io/busylib-py/guides/stock-assets/).
+The sound names the `busy.notify` action takes, and the theme names the
+session actions take, come from there; the icons it takes are listed below.
+
 ## Icons for the notify action
 
 The **Show a notification** action draws an icon at the left edge. Eight have
