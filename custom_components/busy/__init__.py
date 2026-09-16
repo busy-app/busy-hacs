@@ -24,15 +24,22 @@ from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
 from .discovery import async_discover_busy
 from .services_setup import async_register_services
 
+# Order matters, and not only to this file: Home Assistant's own room
+# card lists a device's entities in the order the integration creates
+# them - platform by platform, in this order, and within a platform in
+# the order that platform adds them. So this list is the top half of the
+# card and each platform's own setup is the rest: the screen, then what
+# the bar is doing, then what to do about it, and the remote control and
+# the settings last because a room card is not where those belong.
 _PLATFORMS: list[Platform] = [
-    Platform.BINARY_SENSOR,
-    Platform.BUTTON,
-    Platform.EVENT,
     Platform.IMAGE,
-    Platform.NUMBER,
-    Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
+    Platform.BUTTON,
+    Platform.BINARY_SENSOR,
+    Platform.EVENT,
+    Platform.NUMBER,
+    Platform.SELECT,
     Platform.UPDATE,
 ]
 _LOGGER = logging.getLogger(__name__)
