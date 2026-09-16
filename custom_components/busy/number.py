@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from busylib import types
 from busylib.exceptions import BusyBarError
 from busylib.features import timer
 
-from homeassistant.components.number import NumberEntity, NumberMode
+from homeassistant.components.number import NumberEntity, NumberMode, RestoreNumber
 from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, PlatformNotReady
@@ -35,11 +34,10 @@ async def async_setup_entry(
         [
             BrightnessNumber(coordinator, name),
             VolumeNumber(coordinator, name),
-            *(
-                entity(coordinator, name, slot)
-                for slot in ("busy", "custom")
-                for entity in (WorkNumber, RestNumber, CyclesNumber)
-            ),
+            SimpleLengthNumber(coordinator, name),
+            WorkNumber(coordinator, name),
+            RestNumber(coordinator, name),
+            CyclesNumber(coordinator, name),
         ]
     )
 
@@ -126,154 +124,104 @@ class VolumeNumber(_SettingNumber):
         await self.coordinator.async_request_refresh()
 
 
-class _CardNumber(BusyBarEntity, NumberEntity):
+
+
+class _QuickNumber(BusyBarEntity, RestoreNumber):
     """
-    One setting of one of the bar's two modes.
+    One length a quick-start button will use.
 
-    These are what make a session a particular length. A session cannot
-    carry a length of its own - the device refuses a snapshot that
-    disagrees with the card it names - so this writes the mode's own
-    timer, which the bar and the BUSY app see too.
+    Held in Home Assistant rather than on the bar, because writing it to
+    the bar means writing one of the two cards - and leaving those alone
+    is the whole point of the quick-start buttons. So this never talks to
+    the device: it remembers a number, restores it across a restart, and
+    the button reads it when pressed.
 
-    Unavailable when the mode's timer has no such setting: an endless
-    mode has no lengths at all, and a countdown has no rest or cycles.
+    Which also makes the pair automatable: set the length, press the
+    button, and the bar runs exactly that without either card changing.
     """
 
     _attr_entity_category = EntityCategory.CONFIG
     _attr_mode = NumberMode.BOX
-
-    def __init__(
-        self, coordinator: BusyBarCoordinator, name: str, slot: types.BusyProfileSlot,
-        key: str,
-    ) -> None:
-        super().__init__(coordinator, name, f"{slot}_{key}")
-        self._slot: types.BusyProfileSlot = slot
-
-    def _settings(self):
-        data = self.coordinator.data
-        if data is None:
-            return None
-        card = data.cards.get(self._slot)
-        return None if card is None else card.timer_settings
-
-    async def _write(self, **change: int) -> None:
-        try:
-            await timer.configure(self.coordinator.client, self._slot, **change)
-        except timer.PhaseTooShortError as err:
-            raise HomeAssistantError(
-                translation_domain="busy",
-                translation_key="phase_too_short",
-                translation_placeholders={"error": str(err)},
-            ) from err
-        except (BusyBarError, ValueError) as err:
-            raise HomeAssistantError(
-                translation_domain="busy",
-                translation_key="setting_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
-        await self.coordinator.async_request_refresh()
-
-
-class WorkNumber(_CardNumber):
-    """
-    How long the mode runs for - the work phase, or the whole countdown.
-
-    Five minutes is the floor because the bar ignores anything shorter and
-    keeps what it had, without saying so.
-    """
-
-    _attr_native_min_value = timer.MINIMUM_PHASE_MS // 60_000
-    _attr_native_max_value = 240
     _attr_native_step = 1
-    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
 
     def __init__(
-        self, coordinator: BusyBarCoordinator, name: str, slot: types.BusyProfileSlot
+        self, coordinator: BusyBarCoordinator, name: str, key: str, field: str
     ) -> None:
-        super().__init__(coordinator, name, slot, "work")
-
-    @property
-    def available(self) -> bool:
-        return super().available and not isinstance(
-            self._settings(), types.BusyTimerInfiniteSettings
-        )
+        super().__init__(coordinator, name, key)
+        self._field = field
 
     @property
     def native_value(self) -> float | None:
-        settings = self._settings()
-        if isinstance(settings, types.BusySnapshotIntervalSettings):
-            return settings.interval_work_ms / 60_000
-        if isinstance(settings, types.BusyTimerSimpleSettings):
-            return settings.total_time_ms / 60_000
-        return None
+        return getattr(self.coordinator.quick, self._field)
 
     async def async_set_native_value(self, value: float) -> None:
-        settings = self._settings()
-        minutes = int(value) * 60_000
-        if isinstance(settings, types.BusyTimerSimpleSettings):
-            await self._write(total_ms=minutes)
-        else:
-            await self._write(work_ms=minutes)
+        setattr(self.coordinator.quick, self._field, int(value))
+        self.async_write_ha_state()
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        restored = await self.async_get_last_number_data()
+        if restored is not None and restored.native_value is not None:
+            setattr(self.coordinator.quick, self._field, int(restored.native_value))
 
 
-class RestNumber(_CardNumber):
+class SimpleLengthNumber(_QuickNumber):
     """
-    How long the break between work phases lasts.
-    """
+    How long a quick countdown runs.
 
-    _attr_native_min_value = timer.MINIMUM_PHASE_MS // 60_000
-    _attr_native_max_value = 240
-    _attr_native_step = 1
-    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
-
-    def __init__(
-        self, coordinator: BusyBarCoordinator, name: str, slot: types.BusyProfileSlot
-    ) -> None:
-        super().__init__(coordinator, name, slot, "rest")
-
-    @property
-    def available(self) -> bool:
-        return super().available and isinstance(
-            self._settings(), types.BusySnapshotIntervalSettings
-        )
-
-    @property
-    def native_value(self) -> float | None:
-        settings = self._settings()
-        if isinstance(settings, types.BusySnapshotIntervalSettings):
-            return settings.interval_rest_ms / 60_000
-        return None
-
-    async def async_set_native_value(self, value: float) -> None:
-        await self._write(rest_ms=int(value) * 60_000)
-
-
-class CyclesNumber(_CardNumber):
-    """
-    How many work phases the session runs before it is over.
+    No floor: the firmware checks a countdown at the top only, so two
+    minutes is as valid as two hours.
     """
 
     _attr_native_min_value = 1
-    _attr_native_max_value = 12
-    _attr_native_step = 1
+    _attr_native_max_value = timer.MAXIMUM_TOTAL_MS // 60_000
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
 
-    def __init__(
-        self, coordinator: BusyBarCoordinator, name: str, slot: types.BusyProfileSlot
-    ) -> None:
-        super().__init__(coordinator, name, slot, "cycles")
+    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
+        super().__init__(coordinator, name, "session_simple_length", "simple_minutes")
 
-    @property
-    def available(self) -> bool:
-        return super().available and isinstance(
-            self._settings(), types.BusySnapshotIntervalSettings
-        )
 
-    @property
-    def native_value(self) -> float | None:
-        settings = self._settings()
-        if isinstance(settings, types.BusySnapshotIntervalSettings):
-            return settings.interval_work_cycles_count
-        return None
+class WorkNumber(_QuickNumber):
+    """
+    How long each work phase of a quick interval session runs.
 
-    async def async_set_native_value(self, value: float) -> None:
-        await self._write(cycles=int(value))
+    Five minutes is the floor because the bar refuses anything shorter -
+    as a parse error about the whole snapshot, which explains nothing, so
+    the range is stated here instead.
+    """
+
+    _attr_native_min_value = timer.MINIMUM_PHASE_MS // 60_000
+    _attr_native_max_value = timer.MAXIMUM_PHASE_MS // 60_000
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+
+    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
+        super().__init__(coordinator, name, "session_interval_work", "work_minutes")
+
+
+class RestNumber(_QuickNumber):
+    """
+    How long the break between work phases lasts.
+
+    Five minutes at the least here too: the bar applies the same floor to
+    a break as to work, which rules out the short breaks a session of
+    five and one would want.
+    """
+
+    _attr_native_min_value = timer.MINIMUM_PHASE_MS // 60_000
+    _attr_native_max_value = timer.MAXIMUM_PHASE_MS // 60_000
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+
+    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
+        super().__init__(coordinator, name, "session_interval_rest", "rest_minutes")
+
+
+class CyclesNumber(_QuickNumber):
+    """
+    How many work phases a quick interval session runs before it is over.
+    """
+
+    _attr_native_min_value = timer.MINIMUM_CYCLES
+    _attr_native_max_value = timer.MAXIMUM_CYCLES
+
+    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
+        super().__init__(coordinator, name, "session_interval_cycles", "cycles")
