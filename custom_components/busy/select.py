@@ -65,7 +65,11 @@ class QuickThemeSelect(BusyBarEntity, RestoreEntity, SelectEntity):
     ) -> None:
         super().__init__(coordinator, name, f"quick_theme_{kind}")
         self._kind: timer.TimerKind = kind
-        self._attr_options = themes
+        # The firmware's built-in has no asset directory of its own, so it
+        # appears in the bar's list only while one of the cards is set to
+        # it - and it is what a quick session falls back to. Offering it
+        # always keeps the fallback from being a state this cannot show.
+        self._attr_options = sorted({*themes, timer.DEFAULT_THEME})
 
     @property
     def current_option(self) -> str | None:
