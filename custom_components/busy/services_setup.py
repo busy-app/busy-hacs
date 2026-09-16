@@ -20,10 +20,17 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.const import ATTR_DEVICE_ID
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from homeassistant.helpers import config_validation as cv, device_registry as dr
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry as dr,
+    entity_registry as er,
+)
+from homeassistant.helpers.target import (
+    TargetSelection,
+    async_extract_referenced_entity_ids,
+)
 
 from busylib import types
 from busylib.exceptions import BusyBarError, BusyBarFeatureUnavailableError
@@ -62,10 +69,14 @@ _COLOUR = vol.All(
 # of a 400 from the device.
 _NOTIFY_SCHEMA = vol.Schema(
     {
-        vol.Required(ATTR_DEVICE_ID): vol.All(cv.ensure_list, [cv.string]),
+        **cv.TARGET_SERVICE_FIELDS,
         vol.Required("line_1"): cv.string,
         vol.Optional("line_2"): cv.string,
-        vol.Optional("icon"): vol.Any("none", vol.In(sorted(notification.STOCK_ICONS))),
+        # Not checked against a list here: which icons exist is a fact
+        # about the bar being written to, and busylib asks it, so a name
+        # this integration has never heard of still works if that bar has
+        # the file.
+        vol.Optional("icon"): cv.string,
         vol.Optional("sound"): vol.Any(
             "none", vol.In(sorted(notification.STOCK_SOUNDS))
         ),
@@ -82,11 +93,12 @@ _NOTIFY_SCHEMA = vol.Schema(
 )
 
 
-# Which bar to target, and nothing else: these actions take the same
-# device selector as every other action here.
-_TARGET_SCHEMA = vol.Schema(
-    {vol.Required(ATTR_DEVICE_ID): vol.All(cv.ensure_list, [cv.string])}
-)
+# Which bars to act on. Home Assistant's own target fields rather than a
+# device id of our own, because an automation targets what it has to
+# hand: a room, a label, one of the bar's entities. Asking for a device
+# alone made "every bar in the living room" fail validation, which is the
+# most natural way to say it.
+_TARGET_SCHEMA = vol.Schema(cv.TARGET_SERVICE_FIELDS)
 
 _SLOT = vol.In(("busy", "custom"))
 
@@ -141,23 +153,55 @@ _PLAY_SOUND_SCHEMA = _TARGET_SCHEMA.extend(
 )
 
 
+def _targeted_devices(call: ServiceCall) -> list[str]:
+    """
+    Every bar the call points at, however it was pointed at.
+
+    A target can name devices, areas, labels, floors or entities, and
+    Home Assistant expands all of that for us - but it answers in
+    entities, so anything named by area or label arrives as an entity and
+    has to be traced back to the device it belongs to.
+    """
+    selected = async_extract_referenced_entity_ids(
+        call.hass, TargetSelection(call.data)
+    )
+    devices = set(selected.referenced_devices)
+    entities = er.async_get(call.hass)
+    for entity_id in selected.referenced | selected.indirectly_referenced:
+        entry = entities.async_get(entity_id)
+        if entry is not None and entry.device_id:
+            devices.add(entry.device_id)
+    if not devices:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="unknown_device"
+        )
+    return sorted(devices)
+
+
 def _coordinators(hass: HomeAssistant, device_ids: list[str]) -> list[Any]:
     """
     Resolve the targeted Home Assistant devices to their coordinators.
 
     The coordinator rather than the client, so that an action can ask for
     a refresh when it is done: several of these change settings the bar
-    does not push - a mode's timer, its kind - and without a nudge the
-    entities showing them would sit on stale values until the next poll.
+    does not push, and without a nudge the entities showing them would
+    sit on stale values until the next poll.
+
+    Targets reach things that are not bars - a room holds lamps too - so
+    a device that is not one of ours is passed over rather than refused.
     """
     registry = dr.async_get(hass)
     coordinators: list[Any] = []
     for device_id in device_ids:
         device = registry.async_get(device_id)
         if device is None:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN, translation_key="unknown_device"
-            )
+            continue
+        if not any(
+            (entry := hass.config_entries.async_get_entry(entry_id)) is not None
+            and entry.domain == DOMAIN
+            for entry_id in device.config_entries
+        ):
+            continue
         for entry_id in device.config_entries:
             entry = hass.config_entries.async_get_entry(entry_id)
             if entry is None or entry.domain != DOMAIN:
@@ -170,6 +214,10 @@ def _coordinators(hass: HomeAssistant, device_ids: list[str]) -> list[Any]:
             raise ServiceValidationError(
                 translation_domain=DOMAIN, translation_key="device_not_loaded"
             )
+    if not coordinators:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="unknown_device"
+        )
     return coordinators
 
 
@@ -193,7 +241,7 @@ async def _async_notify(call: ServiceCall) -> None:
     """
     data: dict[str, Any] = dict(call.data)
 
-    for coordinator in _coordinators(call.hass, data[ATTR_DEVICE_ID]):
+    for coordinator in _coordinators(call.hass, _targeted_devices(call)):
         client = coordinator.client
         try:
             await notification.notify(
@@ -250,7 +298,7 @@ async def _for_each_bar(call: ServiceCall, work) -> None:
     failure: the automation asked to pause something that is not running,
     and retrying will not help.
     """
-    for coordinator in _coordinators(call.hass, call.data[ATTR_DEVICE_ID]):
+    for coordinator in _coordinators(call.hass, _targeted_devices(call)):
         try:
             await work(coordinator, call.data)
         except timer.TimerNotRunningError as err:

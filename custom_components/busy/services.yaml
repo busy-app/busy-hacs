@@ -1,5 +1,7 @@
 notify:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
   fields:
@@ -15,9 +17,15 @@ notify:
     icon:
       default: none
       example: check
+      # Long on purpose: the icons the firmware ships, including the Draw
+      # Tool's set, whose names are the ones the Draw Tool shows.
+      # custom_value lets anything else a bar has - an icon its owner
+      # uploaded - be typed in, and busylib checks the name against that
+      # bar rather than against this list, which can only go stale.
       selector:
         select:
           mode: dropdown
+          custom_value: true
           options:
             - none
             - check
@@ -28,6 +36,72 @@ notify:
             - low_battery
             - start
             - setup
+            - dt_apple_green
+            - dt_apple_red
+            - dt_apple_yellow
+            - dt_available
+            - dt_basketball
+            - dt_book
+            - dt_burger
+            - dt_chicken
+            - dt_coctail
+            - dt_coffee
+            - dt_crescent_moon_1
+            - dt_crescent_moon_2
+            - dt_dialog
+            - dt_dialog_no
+            - dt_dialog_yes
+            - dt_drink_1
+            - dt_drink_2
+            - dt_emoji_angry
+            - dt_emoji_awkward
+            - dt_emoji_cry
+            - dt_emoji_dead
+            - dt_emoji_evil
+            - dt_emoji_expressionless
+            - dt_emoji_eyes
+            - dt_emoji_fatigue
+            - dt_emoji_glasses
+            - dt_emoji_grinning
+            - dt_emoji_happy
+            - dt_emoji_heart_eyes
+            - dt_emoji_laught
+            - dt_emoji_melted
+            - dt_emoji_panic
+            - dt_emoji_relief
+            - dt_emoji_sad
+            - dt_emoji_sleep
+            - dt_emoji_surprised
+            - dt_emoji_sweat_smile
+            - dt_emoji_tounge
+            - dt_football
+            - dt_heart_blue
+            - dt_heart_green
+            - dt_heart_light_blue
+            - dt_heart_orange
+            - dt_heart_pink
+            - dt_heart_red
+            - dt_heart_violet
+            - dt_heart_yellow
+            - dt_home
+            - dt_leaf
+            - dt_moon_1
+            - dt_moon_2
+            - dt_no
+            - dt_pie
+            - dt_pizza
+            - dt_pizza_margarita
+            - dt_pizza_peperoni
+            - dt_sparkls_1
+            - dt_sparkls_2
+            - dt_study
+            - dt_tea
+            - dt_tennis
+            - dt_toast
+            - dt_tomato
+            - dt_unavailable
+            - dt_work
+            - dt_yes
     sound:
       default: none
       selector:
@@ -75,6 +149,8 @@ notify:
 
 start_busy:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
   fields:
@@ -102,6 +178,8 @@ start_busy:
 
 start_custom:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
   fields:
@@ -129,6 +207,8 @@ start_custom:
 
 start_quick_infinite:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
   fields:
@@ -156,6 +236,8 @@ start_quick_infinite:
 
 start_quick_simple:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
   fields:
@@ -191,6 +273,8 @@ start_quick_simple:
 
 start_quick_interval:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
   fields:
@@ -242,26 +326,36 @@ start_quick_interval:
 
 stop_session:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
 
 pause_session:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
 
 resume_session:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
 
 next_phase:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
 
 set_theme:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
   fields:
@@ -296,6 +390,8 @@ set_theme:
 
 play_sound:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
   fields:
@@ -311,5 +407,7 @@ play_sound:
 
 clear:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
