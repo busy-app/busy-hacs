@@ -104,8 +104,13 @@ notify:
             - dt_yes
     sound:
       default: none
+      # The three with short names, and custom_value for anything else the
+      # bar has - the timer's own sounds, or one uploaded to it. busylib
+      # checks the name against that bar rather than against this list.
       selector:
         select:
+          mode: dropdown
+          custom_value: true
           options:
             - none
             - event
@@ -397,9 +402,12 @@ play_sound:
   fields:
     sound:
       required: true
+      # The three with short names, and custom_value for anything else
+      # this bar has - the timer's own sounds, or one uploaded to it.
       selector:
         select:
           mode: dropdown
+          custom_value: true
           options:
             - event
             - reminder

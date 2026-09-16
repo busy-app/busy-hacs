@@ -17,6 +17,7 @@ from .entity import PARALLEL_UPDATES, BusyBarEntity
 
 __all__ = ["PARALLEL_UPDATES", "async_setup_entry"]
 
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: BusyBarConfigEntry,

@@ -57,7 +57,6 @@ class SessionRunningSensor(BusyBarEntity, BinarySensorEntity):
 
     _attr_entity_registry_visible_default = False
 
-
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
         super().__init__(coordinator, name, "session_running")
 

@@ -44,6 +44,7 @@ _PLATFORMS: list[Platform] = [
 ]
 _LOGGER = logging.getLogger(__name__)
 
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register the integration's actions.
 
@@ -54,6 +55,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """
     async_register_services(hass)
     return True
+
 
 async def _async_client(
     hass: HomeAssistant, entry: BusyBarConfigEntry, device_id: str, token: str
@@ -83,7 +85,7 @@ async def _async_client(
         )
         _LOGGER.debug(
             f"async_setup_entry: trying remembered address {client.base_url} "
-            f"for device_id=\"{device_id}\""
+            f'for device_id="{device_id}"'
         )
         try:
             await client.access()
@@ -95,7 +97,7 @@ async def _async_client(
         else:
             return client
 
-    _LOGGER.debug(f"async_setup_entry: discovering device with id=\"{device_id}\"")
+    _LOGGER.debug(f'async_setup_entry: discovering device with id="{device_id}"')
     devices = await async_discover_busy(hass)
     device = next((d for d in devices if d.device_id == device_id), None)
     if not device:
@@ -108,7 +110,7 @@ async def _async_client(
         raise ConfigEntryNotReady(translation_key="device_unreachable")
     _LOGGER.debug(
         f"async_setup_entry: confirming HTTP reachability of "
-        f"device_id=\"{device_id}\" at {client.base_url}"
+        f'device_id="{device_id}" at {client.base_url}'
     )
     try:
         await client.access()
@@ -135,14 +137,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: BusyBarConfigEntry) -> b
 
     client = await _async_client(hass, entry, device_id, token)
 
-    _LOGGER.debug(f"async_setup_entry: validating access token for device_id=\"{device_id}\"")
+    _LOGGER.debug(
+        f'async_setup_entry: validating access token for device_id="{device_id}"'
+    )
     try:
         await client.access_tokens_list()
     except BusyBarError:
         await client.aclose()
         raise ConfigEntryAuthFailed(translation_key="access_unauthorized")
 
-    _LOGGER.debug(f"async_setup_entry: setting up platforms for device_id=\"{device_id}\"")
+    _LOGGER.debug(
+        f'async_setup_entry: setting up platforms for device_id="{device_id}"'
+    )
     coordinator = BusyBarCoordinator(hass, client, device_id)
     try:
         await coordinator.async_config_entry_first_refresh()
@@ -171,6 +177,7 @@ def _drop_stale_connections(hass: HomeAssistant, device_id: str) -> None:
     device = registry.async_get_device(identifiers={(DOMAIN, device_id)})
     if device is not None and device.connections:
         registry.async_update_device(device.id, new_connections=set())
+
 
 async def async_unload_entry(hass: HomeAssistant, entry: BusyBarConfigEntry) -> bool:
     unloaded = await hass.config_entries.async_unload_platforms(entry, _PLATFORMS)
