@@ -77,9 +77,10 @@ _NOTIFY_SCHEMA = vol.Schema(
         # this integration has never heard of still works if that bar has
         # the file.
         vol.Optional("icon"): cv.string,
-        vol.Optional("sound"): vol.Any(
-            "none", vol.In(sorted(notification.STOCK_SOUNDS))
-        ),
+        # Not checked against a list here, for the same reason as the
+        # icon above: which sounds exist is a fact about the bar being
+        # written to, and busylib asks it.
+        vol.Optional("sound"): cv.string,
         vol.Optional("duration", default=DEFAULT_DURATION): vol.All(
             vol.Coerce(int), vol.Range(min=0, max=MAX_DURATION)
         ),
@@ -148,9 +149,7 @@ _SET_THEME_SCHEMA = _TARGET_SCHEMA.extend(
     }
 )
 
-_PLAY_SOUND_SCHEMA = _TARGET_SCHEMA.extend(
-    {vol.Required("sound"): vol.In(sorted(notification.STOCK_SOUNDS))}
-)
+_PLAY_SOUND_SCHEMA = _TARGET_SCHEMA.extend({vol.Required("sound"): cv.string})
 
 
 def _targeted_devices(call: ServiceCall) -> list[str]:
@@ -452,12 +451,21 @@ async def _async_set_theme(call: ServiceCall) -> None:
 
 async def _async_play_sound(call: ServiceCall) -> None:
     """
-    Play one of the bar's built-in sounds.
+    Play a sound the bar has.
+
+    Any of them, not only the three with short names: a bar holds the
+    timer's own sounds too, and whatever was uploaded to it. The name is
+    resolved against that bar, so a sound one bar has and another does
+    not fails with the list rather than with silence.
     """
 
     async def work(coordinator: BusyBarCoordinator, data: dict[str, Any]) -> None:
+        sound = await notification.resolve_sound(
+            coordinator.client, data["sound"], application_name=APPLICATION_NAME
+        )
         await coordinator.client.audio_play(
-            stock_path=notification.STOCK_SOUNDS[data["sound"]],
+            path=sound.reference if sound.is_upload else None,
+            stock_path=None if sound.is_upload else sound.reference,
             application_name=APPLICATION_NAME,
         )
 
