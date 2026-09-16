@@ -68,6 +68,8 @@ async def async_setup_entry(
             TimezoneSensor(coordinator, name),
         ]
     )
+
+
 class _SessionSensor(BusyBarEntity, SensorEntity):
     """
     Base for sensors that read the timer.

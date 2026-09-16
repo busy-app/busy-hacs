@@ -300,9 +300,7 @@ class MuteSwitch(_SettingSwitch):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self._write(
-            self.coordinator.client.audio_volume_set(
-                self._unmuted or _DEFAULT_VOLUME
-            )
+            self.coordinator.client.audio_volume_set(self._unmuted or _DEFAULT_VOLUME)
         )
 
 

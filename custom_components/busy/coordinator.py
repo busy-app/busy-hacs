@@ -215,7 +215,8 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
                 raise
             except Exception:  # noqa: BLE001 - a stream must not die quietly
                 _LOGGER.debug(
-                    "state stream for %s dropped, reconnecting", self.device_id,
+                    "state stream for %s dropped, reconnecting",
+                    self.device_id,
                     exc_info=True,
                 )
             await asyncio.sleep(_RECONNECT_DELAY)

@@ -43,6 +43,7 @@ def _announced_address(ip: str) -> BusyBarAddress:
         ),
     )
 
+
 class ConfigFlow(ConfigFlow, domain=DOMAIN):
     r"""
 
@@ -76,12 +77,10 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        _LOGGER.debug("step \"user\" -> \"find_devices\"")
+        _LOGGER.debug('step "user" -> "find_devices"')
         return await self.async_step_find_devices()
 
-    async def async_step_zeroconf(
-        self, discovery_info: Any
-    ) -> ConfigFlowResult:
+    async def async_step_zeroconf(self, discovery_info: Any) -> ConfigFlowResult:
         """Handle a BUSY Bar discovered by Home Assistant Zeroconf."""
         _LOGGER.debug("zeroconf discovery: %s", discovery_info)
         # discovery_info.name is the raw mDNS instance name (e.g.
@@ -137,7 +136,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is None:
-            _LOGGER.debug("step \"zeroconf_confirm\" (no input)")
+            _LOGGER.debug('step "zeroconf_confirm" (no input)')
             return self.async_show_form(
                 step_id="zeroconf_confirm",
                 description_placeholders=self.context["title_placeholders"],
@@ -148,11 +147,11 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         # has no address to build from.
         if self.device.get_address() is None:
             _LOGGER.debug(
-                "step \"zeroconf_confirm\" -> \"find_devices\" (no address announced)"
+                'step "zeroconf_confirm" -> "find_devices" (no address announced)'
             )
             return await self.async_step_find_devices()
 
-        _LOGGER.debug("step \"zeroconf_confirm\" -> \"mint_token\"")
+        _LOGGER.debug('step "zeroconf_confirm" -> "mint_token"')
         return await self.async_step_mint_token()
 
     #
@@ -164,12 +163,12 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_find_devices(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        _LOGGER.debug("step \"find_devices\": discovering devices")
+        _LOGGER.debug('step "find_devices": discovering devices')
         self.devices = await async_discover_busy(self.hass)
 
         if self.devices:
-            _LOGGER.debug("step \"find_devices\": %d device(s) found", len(self.devices))
-            _LOGGER.debug("step \"find_devices\" -> \"select_device\"")
+            _LOGGER.debug('step "find_devices": %d device(s) found', len(self.devices))
+            _LOGGER.debug('step "find_devices" -> "select_device"')
             # Always show the picker, even for a single device: silently
             # locking onto whichever one the scan happened to find first
             # gives the user no chance to notice a wrong or unexpected
@@ -177,9 +176,9 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
             # than one exists but only one answered in time).
             return await self.async_step_select_device()
         else:
-            _LOGGER.debug("step \"find_devices\" -> \"no_devices\"")
+            _LOGGER.debug('step "find_devices" -> "no_devices"')
             return await self.async_step_no_devices()
-    
+
     #
     #                    +--------------+
     # "find_devices" --> | "no_devices" | --> abort
@@ -210,13 +209,13 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
         if not user_input:
-            _LOGGER.debug("step \"select_device\" (no input)")
+            _LOGGER.debug('step "select_device" (no input)')
             return self.async_show_form(
                 step_id="select_device",
                 data_schema=SCHEMA,
             )
 
-        _LOGGER.debug("step \"select_device\" (with input)")
+        _LOGGER.debug('step "select_device" (with input)')
         dev_name = user_input["device"]
         device = next(dev for dev in self.devices if dev.name == dev_name)
         self.device = device
@@ -236,7 +235,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         await self.async_set_unique_id(device.device_id)
         self._abort_if_unique_id_configured()
 
-        _LOGGER.debug("step \"select_device\" -> \"mint_token\"")
+        _LOGGER.debug('step "select_device" -> "mint_token"')
         return await self.async_step_mint_token()
 
     #
@@ -253,16 +252,18 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         SCHEMA = vol.Schema(
             {
-                vol.Required("password", default=""): vol.All(str, vol.Length(min=4, max=128))
+                vol.Required("password", default=""): vol.All(
+                    str, vol.Length(min=4, max=128)
+                )
             }
         )
 
         password = None
         if user_input:
-            _LOGGER.debug("step \"mint_token\" (with input)")
+            _LOGGER.debug('step "mint_token" (with input)')
             password = user_input["password"]
         else:
-            _LOGGER.debug("step \"mint_token\" (without input)")
+            _LOGGER.debug('step "mint_token" (without input)')
 
         client = await self.hass.async_add_executor_job(
             partial(
@@ -275,11 +276,11 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
         try:
-            _LOGGER.debug("step \"mint_token\": minting token")
-            token_info = await client.access_token_mint(
-                self.hass.config.location_name
+            _LOGGER.debug('step "mint_token": minting token')
+            token_info = await client.access_token_mint(self.hass.config.location_name)
+            _LOGGER.debug(
+                f'step "mint_token": acquired token with short_id="{token_info.short_id}"'
             )
-            _LOGGER.debug(f"step \"mint_token\": acquired token with short_id=\"{token_info.short_id}\"")
             token = token_info.token
         except BusyBarRequestError:
             # The bar answered mDNS but not HTTP. Almost always this is a
@@ -294,7 +295,9 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
             )
             return self.async_abort(reason="http_api_disabled")
         except BusyBarError:
-            _LOGGER.debug("step \"mint_token\": minting without password failed, requesting password from user")
+            _LOGGER.debug(
+                'step "mint_token": minting without password failed, requesting password from user'
+            )
             return self.async_show_form(
                 step_id="mint_token",
                 data_schema=SCHEMA,
