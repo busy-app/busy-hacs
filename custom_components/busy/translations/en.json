@@ -238,6 +238,12 @@
       },
       "session_theme": {
         "name": "Session theme"
+      },
+      "wifi_signal": {
+        "name": "Wi-Fi signal"
+      },
+      "usb_voltage": {
+        "name": "USB voltage"
       }
     },
     "binary_sensor": {
