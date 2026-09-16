@@ -129,12 +129,17 @@ _PLAY_SOUND_SCHEMA = _TARGET_SCHEMA.extend(
 )
 
 
-def _clients(hass: HomeAssistant, device_ids: list[str]) -> list[AsyncBusyBar]:
+def _coordinators(hass: HomeAssistant, device_ids: list[str]) -> list[Any]:
     """
-    Resolve the targeted Home Assistant devices to BUSY Bar clients.
+    Resolve the targeted Home Assistant devices to their coordinators.
+
+    The coordinator rather than the client, so that an action can ask for
+    a refresh when it is done: several of these change settings the bar
+    does not push - a mode's timer, its kind - and without a nudge the
+    entities showing them would sit on stale values until the next poll.
     """
     registry = dr.async_get(hass)
-    clients: list[AsyncBusyBar] = []
+    coordinators: list[Any] = []
     for device_id in device_ids:
         device = registry.async_get(device_id)
         if device is None:
@@ -147,13 +152,13 @@ def _clients(hass: HomeAssistant, device_ids: list[str]) -> list[AsyncBusyBar]:
                 continue
             coordinator = getattr(entry, "runtime_data", None)
             if coordinator is not None:
-                clients.append(coordinator.client)
+                coordinators.append(coordinator)
                 break
         else:
             raise ServiceValidationError(
                 translation_domain=DOMAIN, translation_key="device_not_loaded"
             )
-    return clients
+    return coordinators
 
 
 def _ms(minutes: int | None) -> int | None:
@@ -176,7 +181,8 @@ async def _async_notify(call: ServiceCall) -> None:
     """
     data: dict[str, Any] = dict(call.data)
 
-    for client in _clients(call.hass, data[ATTR_DEVICE_ID]):
+    for coordinator in _coordinators(call.hass, data[ATTR_DEVICE_ID]):
+        client = coordinator.client
         try:
             await notification.notify(
                 client,
@@ -232,9 +238,9 @@ async def _for_each_bar(call: ServiceCall, work) -> None:
     failure: the automation asked to pause something that is not running,
     and retrying will not help.
     """
-    for client in _clients(call.hass, call.data[ATTR_DEVICE_ID]):
+    for coordinator in _coordinators(call.hass, call.data[ATTR_DEVICE_ID]):
         try:
-            await work(client, call.data)
+            await work(coordinator.client, call.data)
         except timer.TimerNotRunningError as err:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
@@ -273,6 +279,8 @@ async def _for_each_bar(call: ServiceCall, work) -> None:
                 translation_key="timer_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
+        # Several of these change what only the poll reads back.
+        await coordinator.async_request_refresh()
 
 
 async def _async_start_session(call: ServiceCall) -> None:
