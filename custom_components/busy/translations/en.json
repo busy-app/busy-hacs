@@ -299,41 +299,41 @@
     },
     "number": {
       "brightness": {
-        "name": "Brightness"
+        "name": "Screen brightness"
       },
       "volume": {
-        "name": "Volume"
+        "name": "Sound volume"
       },
       "quick_timer_simple": {
-        "name": "Quick timer Simple minutes"
+        "name": "Quick 3 Simple minutes"
       },
       "quick_timer_interval_work": {
-        "name": "Quick timer Interval work"
+        "name": "Quick 5 Interval work"
       },
       "quick_timer_interval_rest": {
-        "name": "Quick timer Interval rest"
+        "name": "Quick 6 Interval rest"
       },
       "quick_timer_interval_cycles": {
-        "name": "Quick timer Interval cycles"
+        "name": "Quick 7 Interval cycles"
       }
     },
     "select": {
       "quick_theme_infinite": {
-        "name": "Quick theme Infinite"
+        "name": "Quick 1 Infinite theme"
       },
       "quick_theme_simple": {
-        "name": "Quick theme Simple"
+        "name": "Quick 2 Simple theme"
       },
       "quick_theme_interval": {
-        "name": "Quick theme Interval"
+        "name": "Quick 4 Interval theme"
       }
     },
     "switch": {
       "automatic_brightness": {
-        "name": "Brightness automatic"
+        "name": "Screen brightness automatic"
       },
       "mute": {
-        "name": "Volume mute"
+        "name": "Sound volume mute"
       },
       "session_busy": {
         "name": "Session Busy"
@@ -356,7 +356,7 @@
     },
     "update": {
       "firmware": {
-        "name": "Firmware"
+        "name": "Update firmware"
       }
     },
     "button": {

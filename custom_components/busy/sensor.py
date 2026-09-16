@@ -50,6 +50,10 @@ async def async_setup_entry(
 
     async_add_entities(
         [
+            # The room card reads these in this order, so it is the one a
+            # person reads them in: how long the bar has been up, then
+            # what it is running and how far along.
+            BootTimeSensor(coordinator, name),
             SessionTypeSensor(coordinator, name),
             SessionPhaseSensor(coordinator, name),
             SessionEndsAtSensor(coordinator, name),
@@ -61,7 +65,6 @@ async def async_setup_entry(
             IpAddressSensor(coordinator, name),
             ApiVersionSensor(coordinator, name),
             BluetoothSensor(coordinator, name),
-            BootTimeSensor(coordinator, name),
             TimezoneSensor(coordinator, name),
         ]
     )
@@ -151,7 +154,13 @@ class SessionThemeSensor(BusyBarEntity, SensorEntity):
     shown: the snapshot still carries one - whatever the last session
     ended with - and reporting that would claim the bar is showing a
     theme it is not. Each card's own theme is a separate entity.
+
+    Diagnostic: it repeats what the bar is already showing across the
+    room, so it earns a place on the device page and not in the card for
+    a room.
     """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
         super().__init__(coordinator, name, "session_theme")
@@ -295,7 +304,9 @@ class BootTimeSensor(BusyBarEntity, SensorEntity):
     """
 
     _attr_device_class = SensorDeviceClass.TIMESTAMP
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    # Not diagnostic, unlike the readings around it. "Up since Tuesday" is
+    # the first thing a person checks when a bar is behaving oddly, and
+    # the room card shows nothing that carries a category.
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
         super().__init__(coordinator, name, "boot_time")
