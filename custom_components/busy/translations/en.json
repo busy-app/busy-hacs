@@ -168,7 +168,7 @@
         },
         "kind": {
           "name": "Kind",
-          "description": "Endless, a countdown, or a pomodoro. Given, the mode's timer becomes that kind before the session starts - so a countdown for forty minutes is one action, not three steps."
+          "description": "Off, Simple or Pomodoro - the words the BUSY app uses. Given, the mode's timer becomes that kind before the session starts, so a simple timer for forty minutes is one action rather than three steps."
         }
       }
     },
@@ -295,16 +295,16 @@
       "busy_timer_kind": {
         "name": "Busy timer kind",
         "state": {
-          "endless": "Endless",
-          "countdown": "Countdown",
+          "off": "Off",
+          "simple": "Simple",
           "pomodoro": "Pomodoro"
         }
       },
       "custom_timer_kind": {
         "name": "Custom timer kind",
         "state": {
-          "endless": "Endless",
-          "countdown": "Countdown",
+          "off": "Off",
+          "simple": "Simple",
           "pomodoro": "Pomodoro"
         }
       }
