@@ -124,8 +124,6 @@ class VolumeNumber(_SettingNumber):
         await self.coordinator.async_request_refresh()
 
 
-
-
 class _QuickNumber(BusyBarEntity, RestoreNumber):
     """
     One length a quick-start button will use.

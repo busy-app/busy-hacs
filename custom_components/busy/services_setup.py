@@ -177,6 +177,20 @@ def _targeted_devices(call: ServiceCall) -> list[str]:
     return sorted(devices)
 
 
+def _named(hass: HomeAssistant, coordinator: Any) -> str:
+    """
+    What to call a bar in an error.
+
+    A target can reach several bars, and what one refuses another may
+    not - an icon uploaded to one is on that one alone - so an error that
+    does not say which bar answered sends the reader to the wrong device.
+    """
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if getattr(entry, "runtime_data", None) is coordinator:
+            return entry.title
+    return coordinator.device_id
+
+
 def _coordinators(hass: HomeAssistant, device_ids: list[str]) -> list[Any]:
     """
     Resolve the targeted Home Assistant devices to their coordinators.
@@ -279,13 +293,17 @@ async def _async_notify(call: ServiceCall) -> None:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="invalid_notification",
-                translation_placeholders={"error": str(err)},
+                translation_placeholders={
+                    "error": f"{_named(call.hass, coordinator)}: {err}"
+                },
             ) from err
         except BusyBarError as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="notify_failed",
-                translation_placeholders={"error": str(err)},
+                translation_placeholders={
+                    "error": f"{_named(call.hass, coordinator)}: {err}"
+                },
             ) from err
 
 
@@ -304,13 +322,17 @@ async def _for_each_bar(call: ServiceCall, work) -> None:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="timer_not_running",
-                translation_placeholders={"error": str(err)},
+                translation_placeholders={
+                    "error": f"{_named(call.hass, coordinator)}: {err}"
+                },
             ) from err
         except timer.PhaseTooShortError as err:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="phase_too_short",
-                translation_placeholders={"error": str(err)},
+                translation_placeholders={
+                    "error": f"{_named(call.hass, coordinator)}: {err}"
+                },
             ) from err
         except ValueError as err:
             # busylib refuses a length the card cannot use - a total for an
@@ -318,7 +340,9 @@ async def _for_each_bar(call: ServiceCall, work) -> None:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="invalid_timer_request",
-                translation_placeholders={"error": str(err)},
+                translation_placeholders={
+                    "error": f"{_named(call.hass, coordinator)}: {err}"
+                },
             ) from err
         except timer.UnknownThemeError as err:
             # Caught before BusyBarError, which it subclasses: a theme
@@ -336,7 +360,9 @@ async def _for_each_bar(call: ServiceCall, work) -> None:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="timer_failed",
-                translation_placeholders={"error": str(err)},
+                translation_placeholders={
+                    "error": f"{_named(call.hass, coordinator)}: {err}"
+                },
             ) from err
         # Several of these change what only the poll reads back.
         await coordinator.async_request_refresh()
