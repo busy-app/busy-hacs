@@ -187,10 +187,10 @@
         "name": "Battery"
       },
       "wifi_network": {
-        "name": "Wi-Fi network"
+        "name": "Network Wi-Fi"
       },
       "ip_address": {
-        "name": "IP address"
+        "name": "Network address"
       },
       "api_version": {
         "name": "API version"
@@ -199,7 +199,7 @@
         "name": "Started"
       },
       "bluetooth": {
-        "name": "Bluetooth",
+        "name": "Network Bluetooth",
         "state": {
           "reset": "Reset",
           "initialization": "Starting up",
@@ -238,10 +238,10 @@
         "name": "Session theme"
       },
       "wifi_signal": {
-        "name": "Wi-Fi signal"
+        "name": "Network Wi-Fi signal"
       },
       "usb_voltage": {
-        "name": "USB voltage"
+        "name": "Battery USB voltage"
       }
     },
     "binary_sensor": {
@@ -287,6 +287,22 @@
       },
       "theme_custom": {
         "name": "Custom theme"
+      },
+      "busy_timer_kind": {
+        "name": "Busy timer kind",
+        "state": {
+          "endless": "Endless",
+          "countdown": "Countdown",
+          "pomodoro": "Pomodoro"
+        }
+      },
+      "custom_timer_kind": {
+        "name": "Custom timer kind",
+        "state": {
+          "endless": "Endless",
+          "countdown": "Countdown",
+          "pomodoro": "Pomodoro"
+        }
       }
     },
     "switch": {
