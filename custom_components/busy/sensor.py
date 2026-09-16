@@ -18,6 +18,8 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import (
     PERCENTAGE,
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+    UnitOfElectricPotential,
     EntityCategory,
 )
 from homeassistant.core import HomeAssistant
@@ -54,6 +56,8 @@ async def async_setup_entry(
             SessionThemeSensor(coordinator, name),
             BatterySensor(coordinator, name),
             WifiNetworkSensor(coordinator, name),
+            WifiSignalSensor(coordinator, name),
+            UsbVoltageSensor(coordinator, name),
             IpAddressSensor(coordinator, name),
             ApiVersionSensor(coordinator, name),
             BluetoothSensor(coordinator, name),
@@ -367,3 +371,52 @@ class TimezoneSensor(BusyBarEntity, SensorEntity):
     def native_value(self) -> str | None:
         data = self.coordinator.data
         return None if data is None else data.timezone
+
+
+class WifiSignalSensor(_WifiSensor):
+    """
+    How strong the bar's Wi-Fi signal is.
+
+    In dBm, which is what the radio reports: roughly -50 is next to the
+    access point, -70 is workable, -85 is where a bar starts dropping off
+    the network. Diagnostic, because it is the first thing to look at when
+    one does.
+    """
+
+    _attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = SIGNAL_STRENGTH_DECIBELS_MILLIWATT
+
+    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
+        super().__init__(coordinator, name, "wifi_signal")
+
+    @property
+    def native_value(self) -> int | None:
+        wifi = self._wifi()
+        return None if wifi is None else wifi.rssi
+
+
+class UsbVoltageSensor(BusyBarEntity, SensorEntity):
+    """
+    What the bar measures on its USB rail.
+
+    A reading, not an answer to "is it plugged in": a bar discharging with
+    nothing attached still reports about 4.5 V here. Whether a cable is
+    there is something the firmware knows and does not put on the wire,
+    which is why this integration has no sensor claiming to know.
+    """
+
+    _attr_device_class = SensorDeviceClass.VOLTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.MILLIVOLT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
+        super().__init__(coordinator, name, "usb_voltage")
+
+    @property
+    def native_value(self) -> int | None:
+        data = self.coordinator.data
+        if data is None or data.snapshot.power is None:
+            return None
+        return data.snapshot.power.usb_voltage
