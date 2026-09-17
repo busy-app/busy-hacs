@@ -83,12 +83,20 @@ async def async_setup_entry(
 
 class BusyBarButton(BusyBarEntity, ButtonEntity):
     """
-    One of the bar's buttons.
+    One of the bar's buttons, or a way to move its switch.
+
+    Hidden from dashboards by default. These are a remote control: thirteen
+    of them, useful in an automation and when someone cannot reach the bar,
+    and noise in the card for a room. They are created, they work, and they
+    are one click from being shown - what they are not is on the wall by
+    default.
 
     Useful for the same reasons the physical button is: dismissing what is
     on screen, or starting whatever the current profile starts, from an
     automation rather than by reaching for the bar.
     """
+
+    _attr_entity_registry_visible_default = False
 
     def __init__(
         self,
