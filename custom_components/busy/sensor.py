@@ -18,7 +18,6 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import (
     PERCENTAGE,
-    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     EntityCategory,
 )
 from homeassistant.core import HomeAssistant
@@ -52,26 +51,16 @@ async def async_setup_entry(
             TimerModeSensor(coordinator, name),
             TimerPhaseSensor(coordinator, name),
             TimerEndsAtSensor(coordinator, name),
+            SelectorSensor(coordinator, name),
             ThemeSensor(coordinator, name),
             BatterySensor(coordinator, name),
             WifiNetworkSensor(coordinator, name),
-            WifiSignalSensor(coordinator, name),
-            WifiSignalStrengthSensor(coordinator, name),
             IpAddressSensor(coordinator, name),
             ApiVersionSensor(coordinator, name),
             BluetoothSensor(coordinator, name),
             BootTimeSensor(coordinator, name),
         ]
     )
-
-
-# Where "weak", "medium" and "strong" divide. Wi-Fi radios are usually
-# described as good above -60 dBm and barely usable below -75, which is the
-# range worth naming rather than showing a number nobody reads.
-_STRONG_RSSI = -60
-_MEDIUM_RSSI = -75
-
-
 class _TimerSensor(BusyBarEntity, SensorEntity):
     """
     Base for sensors that read the timer.
@@ -247,55 +236,6 @@ class WifiNetworkSensor(_WifiSensor):
         }
 
 
-class WifiSignalSensor(_WifiSensor):
-    """
-    How good the signal is, in words.
-
-    dBm is the honest unit and it is available as its own sensor, but the
-    question being asked of this one is whether the bar is well placed, and
-    "weak" answers that without anyone having to remember that -80 is bad.
-    """
-
-    _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = ["weak", "medium", "strong"]
-
-    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "wifi_signal")
-
-    @property
-    def native_value(self) -> str | None:
-        wifi = self._wifi()
-        if wifi is None or wifi.rssi is None:
-            return None
-        if wifi.rssi >= _STRONG_RSSI:
-            return "strong"
-        if wifi.rssi >= _MEDIUM_RSSI:
-            return "medium"
-        return "weak"
-
-
-class WifiSignalStrengthSensor(_WifiSensor):
-    """
-    The signal in dBm, for anyone who wants to graph it.
-
-    Off by default: the named version above is what the reading is usually
-    wanted for, and two entities saying the same thing crowd the page.
-    """
-
-    _attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_native_unit_of_measurement = SIGNAL_STRENGTH_DECIBELS_MILLIWATT
-    _attr_entity_registry_enabled_default = False
-
-    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "wifi_signal_strength")
-
-    @property
-    def native_value(self) -> int | None:
-        wifi = self._wifi()
-        return None if wifi is None else wifi.rssi
-
-
 class IpAddressSensor(BusyBarEntity, SensorEntity):
     """
     The address Home Assistant is talking to the bar on.
@@ -406,3 +346,26 @@ class BluetoothSensor(BusyBarEntity, SensorEntity):
         # is a sentence rather than a state name.
         status = "error" if "error" in status.lower() else status.lower()
         return status if status in self._attr_options else "unknown"
+
+
+class SelectorSensor(BusyBarEntity, SensorEntity):
+    """
+    Where the bar's selector is pointing.
+
+    Read-only, because moving it is five buttons that each say what they
+    do. The bar reports the position only when it changes - nothing
+    answers "where is it now" - so this is unknown until the first move
+    after Home Assistant starts, which is the honest answer rather than a
+    guess.
+    """
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["busy", "custom", "off", "apps", "settings"]
+
+    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
+        super().__init__(coordinator, name, "selector")
+
+    @property
+    def native_value(self) -> str | None:
+        data = self.coordinator.data
+        return None if data is None else data.selector

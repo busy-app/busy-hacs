@@ -3,7 +3,8 @@
     "abort": {
       "already_configured": "Device is already configured",
       "already_in_progress": "Setup for this device is already in progress",
-      "no_devices_found": "No BUSY Bar devices found.\nMake sure to check the following:\n- BUSY Bar is charged and powered on\n- If you want to use Wi-Fi, go to SETTINGS > Wi-Fi and check whether BUSY Bar is connected to the same network than the machine running Home Assistant.\n- If you want to use USB, check whether BUSY Bar is connected to the machine running Home Assistant."
+      "no_devices_found": "No BUSY Bar devices found.\nMake sure to check the following:\n- BUSY Bar is charged and powered on\n- The HTTP API is on: SETTINGS > Wi-Fi on the bar\n- If you want to use Wi-Fi, go to SETTINGS > Wi-Fi and check whether BUSY Bar is connected to the same network than the machine running Home Assistant.\n- If you want to use USB, check whether BUSY Bar is connected to the machine running Home Assistant.",
+      "http_api_disabled": "{name} was found on the network but did not answer over HTTP.\nA bar keeps announcing itself even with its HTTP API turned off, which is why it appears here and then cannot be added.\nOn the bar, open SETTINGS > Wi-Fi and turn on the HTTP API, then add it again. If the API is already on, the bar may have been busy - try once more."
     },
     "flow_title": "{name}",
     "step": {
@@ -13,13 +14,14 @@
       "mint_token": {
         "data": {
           "password": "Wi-Fi access key"
-        }
+        },
+        "description": "The bar's HTTP API over Wi-Fi has to be on for Home Assistant to reach it. If the API asks for an access key, enter it; the key is shown on the bar under SETTINGS > Wi-Fi."
       }
     }
   },
   "exceptions": {
     "device_unreachable": {
-      "message": "Device is no longer reachable. Verify USB and/or Wi-Fi connection."
+      "message": "The bar is no longer answering. Check its Wi-Fi or USB connection, and that its HTTP API is still turned on."
     },
     "access_unauthorized": {
       "message": "Device has been removed from this smart home. Please reconfigure the device."
@@ -194,17 +196,6 @@
       "wifi_network": {
         "name": "Wi-Fi network"
       },
-      "wifi_signal": {
-        "name": "Wi-Fi signal",
-        "state": {
-          "weak": "Weak",
-          "medium": "Medium",
-          "strong": "Strong"
-        }
-      },
-      "wifi_signal_strength": {
-        "name": "Wi-Fi signal strength"
-      },
       "ip_address": {
         "name": "IP address"
       },
@@ -226,6 +217,16 @@
           "error": "Error",
           "unknown": "Unknown"
         }
+      },
+      "selector": {
+        "name": "Selector",
+        "state": {
+          "busy": "Busy",
+          "custom": "Custom",
+          "off": "Off",
+          "apps": "Apps",
+          "settings": "Settings"
+        }
       }
     },
     "binary_sensor": {
@@ -234,9 +235,6 @@
       },
       "charging": {
         "name": "Battery charging"
-      },
-      "external_power": {
-        "name": "Battery USB power"
       }
     },
     "number": {
@@ -250,16 +248,6 @@
     "select": {
       "timezone": {
         "name": "Timezone"
-      },
-      "selector": {
-        "name": "Selector",
-        "state": {
-          "busy": "Busy",
-          "custom": "Custom",
-          "off": "Off",
-          "apps": "Apps",
-          "settings": "Settings"
-        }
       },
       "theme_busy": {
         "name": "Theme busy card"
@@ -275,14 +263,14 @@
       "automatic_brightness": {
         "name": "Brightness automatic"
       },
-      "mute": {
-        "name": "Volume mute"
-      },
       "automatic_updates": {
         "name": "Automatic firmware updates"
       },
       "timer_paused": {
         "name": "Timer paused"
+      },
+      "mute": {
+        "name": "Volume mute"
       }
     },
     "update": {
@@ -305,11 +293,78 @@
       },
       "stop_timer": {
         "name": "Timer stop"
+      },
+      "selector_busy": {
+        "name": "Selector to Busy"
+      },
+      "selector_custom": {
+        "name": "Selector to Custom"
+      },
+      "selector_off": {
+        "name": "Selector to Off"
+      },
+      "selector_apps": {
+        "name": "Selector to Apps"
+      },
+      "selector_settings": {
+        "name": "Selector to Settings"
+      },
+      "wheel_up": {
+        "name": "Wheel up"
+      },
+      "wheel_down": {
+        "name": "Wheel down"
       }
     },
     "image": {
       "screen": {
         "name": "Screen"
+      }
+    },
+    "event": {
+      "button_ok": {
+        "name": "Button OK",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "press": "Pressed",
+              "release": "Released"
+            }
+          }
+        }
+      },
+      "button_back": {
+        "name": "Button Back",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "press": "Pressed",
+              "release": "Released"
+            }
+          }
+        }
+      },
+      "button_start": {
+        "name": "Button Start",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "press": "Pressed",
+              "release": "Released"
+            }
+          }
+        }
+      },
+      "scroll": {
+        "name": "Scroll",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "left": "Scrolled left",
+              "right": "Scrolled right"
+            }
+          }
+        }
       }
     }
   }
