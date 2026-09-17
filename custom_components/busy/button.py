@@ -26,6 +26,25 @@ _BUTTONS = (
 )
 
 
+# Moving the selector, one button per position. A select entity carried
+# these instead, but Home Assistant then offered every select's generic
+# actions for it - "Select first", "Select next", "Select option" - which
+# say nothing about a bar and cannot be renamed by an integration. A
+# button per position names itself in the automation editor.
+_POSITIONS = (
+    ("selector_busy", types.InputKey.BUSY),
+    ("selector_custom", types.InputKey.CUSTOM),
+    ("selector_off", types.InputKey.OFF),
+    ("selector_apps", types.InputKey.APPS),
+    ("selector_settings", types.InputKey.SETTINGS),
+)
+
+# The wheel, which is how the bar is navigated. Worth having from here for
+# the same reason the buttons are: someone who cannot reach the bar can
+# still drive it.
+_WHEEL = (("wheel_up", types.InputKey.UP), ("wheel_down", types.InputKey.DOWN))
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: BusyBarConfigEntry,
@@ -43,7 +62,7 @@ async def async_setup_entry(
         [
             *(
                 BusyBarButton(coordinator, name, key, input_key)
-                for key, input_key in _BUTTONS
+                for key, input_key in (*_BUTTONS, *_POSITIONS, *_WHEEL)
             ),
             NextPhaseButton(coordinator, name),
             StopTimerButton(coordinator, name),
