@@ -59,6 +59,7 @@ async def async_setup_entry(
             ApiVersionSensor(coordinator, name),
             BluetoothSensor(coordinator, name),
             BootTimeSensor(coordinator, name),
+            TimezoneSensor(coordinator, name),
         ]
     )
 class _TimerSensor(BusyBarEntity, SensorEntity):
@@ -369,3 +370,24 @@ class SwitchPositionSensor(BusyBarEntity, SensorEntity):
     def native_value(self) -> str | None:
         data = self.coordinator.data
         return None if data is None else data.selector
+
+
+class TimezoneSensor(BusyBarEntity, SensorEntity):
+    """
+    The timezone the bar keeps its clock in.
+
+    A reading rather than a list to pick from: the bar has its own
+    timezone and its clock is on screen all day, so it is worth seeing -
+    but it is set on the bar, and offering to change it from here puts two
+    places in charge of one thing.
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
+        super().__init__(coordinator, name, "timezone")
+
+    @property
+    def native_value(self) -> str | None:
+        data = self.coordinator.data
+        return None if data is None else data.timezone
