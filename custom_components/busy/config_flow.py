@@ -17,7 +17,7 @@ from busylib.devices import (
     BusyBarAddressAffinity,
     BusyBarDevice,
 )
-from busylib.exceptions import BusyBarError
+from busylib.exceptions import BusyBarError, BusyBarRequestError
 from busylib.transports import AiohttpTransport
 
 from .const import DOMAIN
@@ -281,6 +281,18 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
             )
             _LOGGER.debug(f"step \"mint_token\": acquired token with short_id=\"{token_info.short_id}\"")
             token = token_info.token
+        except BusyBarRequestError:
+            # The bar answered mDNS but not HTTP. Almost always this is a
+            # bar with its HTTP API over Wi-Fi switched off: it keeps
+            # announcing itself, so it is found and offered, and then
+            # nothing can talk to it. Asking for a key here is worse than
+            # useless - no key exists, and the person is left trying
+            # passwords against a door that is not there.
+            _LOGGER.debug(
+                "step \"mint_token\": %s answered discovery but not HTTP",
+                self.device.device_id,
+            )
+            return self.async_abort(reason="http_api_disabled")
         except BusyBarError:
             _LOGGER.debug("step \"mint_token\": minting without password failed, requesting password from user")
             return self.async_show_form(
