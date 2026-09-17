@@ -311,6 +311,52 @@
       "screen": {
         "name": "Screen"
       }
+    },
+    "event": {
+      "button_ok": {
+        "name": "Button OK",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "press": "Pressed",
+              "release": "Released"
+            }
+          }
+        }
+      },
+      "button_back": {
+        "name": "Button Back",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "press": "Pressed",
+              "release": "Released"
+            }
+          }
+        }
+      },
+      "button_start": {
+        "name": "Button Start",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "press": "Pressed",
+              "release": "Released"
+            }
+          }
+        }
+      },
+      "scroll": {
+        "name": "Scroll",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "left": "Scrolled left",
+              "right": "Scrolled right"
+            }
+          }
+        }
+      }
     }
   }
 }
