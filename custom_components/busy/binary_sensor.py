@@ -38,7 +38,6 @@ async def async_setup_entry(
         [
             TimerRunningSensor(coordinator, name),
             ChargingSensor(coordinator, name),
-            ExternalPowerSensor(coordinator, name),
         ]
     )
 
@@ -79,28 +78,3 @@ class ChargingSensor(BusyBarEntity, BinarySensorEntity):
             return None
         state = data.snapshot.power.state
         return None if state is None else state == types.PowerState.CHARGING
-
-
-class ExternalPowerSensor(BusyBarEntity, BinarySensorEntity):
-    """
-    Whether a USB supply is attached.
-
-    Distinct from charging on purpose: a bar sitting at 100% reports
-    `discharging` with no current flowing, so "charging" answers "is the
-    battery filling" while this answers "is it plugged in" - which is
-    usually the question being asked.
-    """
-
-    _attr_device_class = BinarySensorDeviceClass.PLUG
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "external_power")
-
-    @property
-    def is_on(self) -> bool | None:
-        data = self.coordinator.data
-        if data is None or data.snapshot.power is None:
-            return None
-        voltage = data.snapshot.power.usb_voltage
-        return None if voltage is None else voltage > 0
