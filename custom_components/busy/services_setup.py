@@ -65,7 +65,11 @@ _NOTIFY_SCHEMA = vol.Schema(
         vol.Required(ATTR_DEVICE_ID): vol.All(cv.ensure_list, [cv.string]),
         vol.Required("line_1"): cv.string,
         vol.Optional("line_2"): cv.string,
-        vol.Optional("icon"): vol.Any("none", vol.In(sorted(notification.STOCK_ICONS))),
+        # Not checked against a list here: which icons exist is a fact
+        # about the bar being written to, and busylib asks it, so a name
+        # this integration has never heard of still works if that bar has
+        # the file.
+        vol.Optional("icon"): cv.string,
         vol.Optional("sound"): vol.Any(
             "none", vol.In(sorted(notification.STOCK_SOUNDS))
         ),

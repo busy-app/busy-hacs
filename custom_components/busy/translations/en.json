@@ -3,7 +3,8 @@
     "abort": {
       "already_configured": "Device is already configured",
       "already_in_progress": "Setup for this device is already in progress",
-      "no_devices_found": "No BUSY Bar devices found.\nMake sure to check the following:\n- BUSY Bar is charged and powered on\n- If you want to use Wi-Fi, go to SETTINGS > Wi-Fi and check whether BUSY Bar is connected to the same network than the machine running Home Assistant.\n- If you want to use USB, check whether BUSY Bar is connected to the machine running Home Assistant."
+      "no_devices_found": "No BUSY Bar devices found.\nMake sure to check the following:\n- BUSY Bar is charged and powered on\n- The HTTP API is on: SETTINGS > Wi-Fi on the bar\n- If you want to use Wi-Fi, go to SETTINGS > Wi-Fi and check whether BUSY Bar is connected to the same network than the machine running Home Assistant.\n- If you want to use USB, check whether BUSY Bar is connected to the machine running Home Assistant.",
+      "http_api_disabled": "{name} was found on the network but did not answer over HTTP.\nA bar keeps announcing itself even with its HTTP API turned off, which is why it appears here and then cannot be added.\nOn the bar, open SETTINGS > Wi-Fi and turn on the HTTP API, then add it again. If the API is already on, the bar may have been busy - try once more."
     },
     "flow_title": "{name}",
     "step": {
@@ -13,13 +14,14 @@
       "mint_token": {
         "data": {
           "password": "Wi-Fi access key"
-        }
+        },
+        "description": "The bar's HTTP API over Wi-Fi has to be on for Home Assistant to reach it. If the API asks for an access key, enter it; the key is shown on the bar under SETTINGS > Wi-Fi."
       }
     }
   },
   "exceptions": {
     "device_unreachable": {
-      "message": "Device is no longer reachable. Verify USB and/or Wi-Fi connection."
+      "message": "The bar is no longer answering. Check its Wi-Fi or USB connection, and that its HTTP API is still turned on."
     },
     "access_unauthorized": {
       "message": "Device has been removed from this smart home. Please reconfigure the device."
@@ -82,7 +84,7 @@
         },
         "icon": {
           "name": "Icon",
-          "description": "A built-in icon, drawn at the left edge."
+          "description": "An icon to draw at the left edge. The list holds what the firmware ships, including the Draw Tool's set under the same names it shows there; any other icon on the bar can be typed in. A name the bar does not have is refused with the list it does have."
         },
         "sound": {
           "name": "Sound",
@@ -395,6 +397,52 @@
     "image": {
       "screen": {
         "name": "Screen"
+      }
+    },
+    "event": {
+      "button_ok": {
+        "name": "Button OK",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "press": "Pressed",
+              "release": "Released"
+            }
+          }
+        }
+      },
+      "button_back": {
+        "name": "Button Back",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "press": "Pressed",
+              "release": "Released"
+            }
+          }
+        }
+      },
+      "button_start": {
+        "name": "Button Start",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "press": "Pressed",
+              "release": "Released"
+            }
+          }
+        }
+      },
+      "scroll": {
+        "name": "Scroll",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "left": "Scrolled left",
+              "right": "Scrolled right"
+            }
+          }
+        }
       }
     }
   }
