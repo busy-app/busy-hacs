@@ -13,7 +13,6 @@ notify:
       selector:
         text:
     icon:
-      default: none
       example: check
       # Long on purpose: the icons the firmware ships, including the Draw
       # Tool's set, whose names are the ones the Draw Tool shows.
@@ -25,7 +24,6 @@ notify:
           mode: dropdown
           custom_value: true
           options:
-            - none
             - check
             - error
             - info
@@ -101,7 +99,6 @@ notify:
             - dt_work
             - dt_yes
     sound:
-      default: none
       # The three with short names, and custom_value for anything else the
       # bar has - the timer's own sounds, or one uploaded to it. busylib
       # checks the name against that bar rather than against this list.
@@ -110,7 +107,6 @@ notify:
           mode: dropdown
           custom_value: true
           options:
-            - none
             - event
             - reminder
             - volume
@@ -137,6 +133,18 @@ notify:
                 - bold
                 - large
                 - extra_large
+        font_2:
+          # Two lines fit only the five shorter fonts, so the two tallest
+          # are not offered here - they are a single line's option.
+          selector:
+            select:
+              mode: dropdown
+              options:
+                - tiny
+                - small
+                - normal
+                - condensed
+                - bold
         line_1_color:
           example: [255, 255, 255]
           selector:

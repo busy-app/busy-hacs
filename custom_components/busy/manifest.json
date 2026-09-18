@@ -12,7 +12,7 @@
   "issue_tracker": "https://github.com/busy-app/busy-hacs/issues",
   "quality_scale": "bronze",
   "requirements": [
-    "busylib[aiohttp]>=2.5,<3"
+    "busylib[aiohttp]>=2.6,<3"
   ],
   "version": "1.0.0",
   "zeroconf": [

@@ -162,3 +162,63 @@ async def test_a_bar_answers_with_what_it_can_show_and_play(
     # Uploads are kept apart by the application that put them there: a
     # name is only usable by the application whose folder it is in.
     assert catalogue["images"]["uploaded"] == {"home_assistant": ["logo"]}
+
+
+async def test_a_notification_can_size_its_two_lines_apart(
+    hass, prod_entry, bars, busy_network, quiet_snapshot
+) -> None:
+    """
+    A label over a detail is the common case, and it reads across a room
+    only if the label is the bigger of the two.
+    """
+    bars[PROD_HOST] = FakeBar()
+    prod_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+
+    with patch(
+        "custom_components.busy.services_setup.notification.notify", AsyncMock()
+    ) as notified:
+        await hass.services.async_call(
+            DOMAIN,
+            "notify",
+            {
+                "device_id": _device_id(hass, prod_entry),
+                "line_1": "MEETING",
+                "line_2": "until 15:30",
+                "font": "bold",
+                "font_2": "tiny",
+            },
+            blocking=True,
+        )
+
+    _, kwargs = notified.call_args
+    assert (kwargs["font"], kwargs["font_2"]) == ("bold", "tiny")
+
+
+async def test_a_notification_with_no_icon_asks_for_none(
+    hass, prod_entry, bars, busy_network, quiet_snapshot
+) -> None:
+    """
+    Leaving the field out is how a notification has no icon. There used
+    to be a "none" in the list beside the real icons, which is the same
+    nothing said twice.
+    """
+    bars[PROD_HOST] = FakeBar()
+    prod_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+
+    with patch(
+        "custom_components.busy.services_setup.notification.notify", AsyncMock()
+    ) as notified:
+        await hass.services.async_call(
+            DOMAIN,
+            "notify",
+            {"device_id": _device_id(hass, prod_entry), "line_1": "Laundry"},
+            blocking=True,
+        )
+
+    _, kwargs = notified.call_args
+    assert kwargs["icon"] is None
+    assert kwargs["sound"] is None

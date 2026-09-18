@@ -95,6 +95,9 @@ _NOTIFY_SCHEMA = vol.Schema(
         vol.Optional("font", default=notification.DEFAULT_FONT): vol.In(
             notification.ONE_LINE_FONTS
         ),
+        # A size for the second line alone. Two lines fit only the
+        # shorter fonts, and busylib refuses either line over that.
+        vol.Optional("font_2"): vol.In(notification.TWO_LINE_FONTS),
         vol.Optional("line_1_color"): _COLOUR,
         vol.Optional("line_2_color"): _COLOUR,
         vol.Optional("background_color"): _COLOUR,
@@ -272,6 +275,7 @@ async def _async_notify(call: ServiceCall) -> None:
                 icon=_optional(data.get("icon")),
                 sound=_optional(data.get("sound")),
                 font=data["font"],
+                font_2=data.get("font_2"),
                 line_1_color=data.get("line_1_color"),
                 line_2_color=data.get("line_2_color"),
                 background_color=data.get("background_color"),

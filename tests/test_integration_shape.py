@@ -137,4 +137,4 @@ def test_the_manifest_asks_for_the_library_it_uses() -> None:
     manifest = json.loads((COMPONENT / "manifest.json").read_text())
     requirement = next(r for r in manifest["requirements"] if "busylib" in r)
 
-    assert ">=2.5" in requirement
+    assert ">=2.6" in requirement
