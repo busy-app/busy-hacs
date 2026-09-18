@@ -190,14 +190,14 @@ async def test_a_notification_can_size_its_two_lines_apart(
                 "device_id": _device_id(hass, prod_entry),
                 "line_1": "MEETING",
                 "line_2": "until 15:30",
-                "font": "bold",
-                "font_2": "tiny",
+                "line_1_font": "bold",
+                "line_2_font": "tiny",
             },
             blocking=True,
         )
 
     _, kwargs = notified.call_args
-    assert (kwargs["font"], kwargs["font_2"]) == ("bold", "tiny")
+    assert (kwargs["line_1_font"], kwargs["line_2_font"]) == ("bold", "tiny")
 
 
 async def test_a_notification_with_no_icon_asks_for_none(

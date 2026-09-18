@@ -121,8 +121,8 @@
           "name": "Duration",
           "description": "How long the notification stays on screen."
         },
-        "font": {
-          "name": "First line size",
+        "line_1_font": {
+          "name": "Line 1 size",
           "description": "How big the first line is - and the second too, unless that one is given a size of its own. The two tallest sizes are for a single line: two lines do not fit them."
         },
         "line_1_color": {
@@ -137,8 +137,8 @@
           "name": "Background colour",
           "description": "Fills the panel behind the text. Needs API 24.3.0."
         },
-        "font_2": {
-          "name": "Second line size",
+        "line_2_font": {
+          "name": "Line 2 size",
           "description": "A size for the second line alone. A label over a detail - big over tiny - says which of the two matters, where one size for both says they are equal."
         },
         "interrupt": {

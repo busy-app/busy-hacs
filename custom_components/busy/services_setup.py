@@ -104,12 +104,12 @@ _NOTIFY_SCHEMA = vol.Schema(
         # one runs the firmware refuses every drawing whatever its
         # priority, which is why that case has a message of its own.
         vol.Optional("interrupt", default=False): cv.boolean,
-        vol.Optional("font", default=notification.DEFAULT_FONT): vol.In(
+        vol.Optional("line_1_font", default=notification.DEFAULT_FONT): vol.In(
             notification.ONE_LINE_FONTS
         ),
         # A size for the second line alone. Two lines fit only the
         # shorter fonts, and busylib refuses either line over that.
-        vol.Optional("font_2"): vol.In(notification.TWO_LINE_FONTS),
+        vol.Optional("line_2_font"): vol.In(notification.TWO_LINE_FONTS),
         vol.Optional("line_1_color"): _COLOUR,
         vol.Optional("line_2_color"): _COLOUR,
         vol.Optional("background_color"): _COLOUR,
@@ -299,8 +299,8 @@ async def _async_notify(call: ServiceCall) -> None:
                     if sound
                     else None
                 ),
-                font=data["font"],
-                font_2=data.get("font_2"),
+                line_1_font=data["line_1_font"],
+                line_2_font=data.get("line_2_font"),
                 line_1_color=data.get("line_1_color"),
                 line_2_color=data.get("line_2_color"),
                 background_color=data.get("background_color"),

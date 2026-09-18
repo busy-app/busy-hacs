@@ -132,7 +132,7 @@ notify:
     appearance:
       collapsed: true
       fields:
-        font:
+        line_1_font:
           default: small
           selector:
             select:
@@ -145,7 +145,7 @@ notify:
                 - bold
                 - large
                 - extra_large
-        font_2:
+        line_2_font:
           # Two lines fit only the five shorter fonts, so the two tallest
           # are not offered here - they are a single line's option.
           selector:
