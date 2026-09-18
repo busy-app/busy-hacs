@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 import logging
 
 from busylib import AsyncBusyBar, types
@@ -32,6 +32,18 @@ _LOGGER = logging.getLogger(__name__)
 # the stream.
 UPDATE_INTERVAL = timedelta(seconds=30)
 
+# Except while firmware is installing. Then this poll is what moves the
+# progress bar, and half a minute of nothing looks like a bar that has
+# stopped rather than one unpacking an archive.
+INSTALL_UPDATE_INTERVAL = timedelta(seconds=5)
+
+# An install ends with a reboot, which takes the bar off the network for
+# the best part of a minute. Reporting that as a failure turns the last
+# step of a successful install into an unavailable device, so for this
+# long after the bar was last seen installing, being unreachable is read
+# as "still at it" rather than "gone".
+INSTALL_REBOOT_GRACE = timedelta(minutes=5)
+
 # The stream is dominated by screen frames - roughly thirty per timer change -
 # so most entities are only told about updates that carried something they
 # show. Frames go to the screen entity instead, on their own throttle.
@@ -53,6 +65,32 @@ _FRAME_INTERVAL = 1.0
 # How long to wait before reconnecting a dropped stream. Long enough not to
 # hammer a rebooting bar, short enough that a session change is not missed.
 _RECONNECT_DELAY = 5.0
+
+
+# What the bar reports while it is installing firmware, from its own
+# OpenAPI: every action other than "none" is work, and only the download
+# reports how far along it is. Naming them here rather than guessing is
+# the point - the guess was `install` and `verify`, which the firmware
+# never says, so the progress vanished the moment the download ended.
+INSTALL_ACTIONS = frozenset(
+    {"download", "sha_verification", "unpack", "prepare", "apply"}
+)
+
+# The events that bracket an install. A session that has started is still
+# running until it stops, even between actions.
+INSTALL_EVENTS = frozenset(
+    {"session_start", "action_begin", "action_progress", "detail_change"}
+)
+
+
+def firmware_is_installing(status: types.UpdateStatus | None) -> bool:
+    """
+    Whether the bar is installing firmware at this moment.
+    """
+    install = None if status is None else status.install
+    if install is None:
+        return False
+    return install.action in INSTALL_ACTIONS or install.event in INSTALL_EVENTS
 
 
 # The card a quick session names. A snapshot has to name one, and this is
@@ -126,6 +164,7 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
         )
         self.client = client
         self.device_id = device_id
+        self._installing_until: datetime | None = None
         self.quick = QuickSession()
         self._stream: asyncio.Task[None] | None = None
         self._frame_listeners: list[Callable[[], None]] = []
@@ -150,7 +189,25 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
                 for slot in ("busy", "custom")
             }
         except BusyBarError as err:
+            if (
+                self._installing_until is not None
+                and datetime.now(UTC) < self._installing_until
+                and self.data is not None
+            ):
+                # Mid-install silence is the reboot, not a lost bar.
+                _LOGGER.debug(
+                    "BUSY Bar %s is unreachable while installing firmware",
+                    self.device_id,
+                )
+                return self.data
             raise UpdateFailed(f"BUSY Bar {self.device_id} is unreachable") from err
+
+        # A poll every half minute is plenty until the bar starts
+        # installing, and far too slow while it does.
+        installing = firmware_is_installing(update_status)
+        self.update_interval = INSTALL_UPDATE_INTERVAL if installing else UPDATE_INTERVAL
+        if installing:
+            self._installing_until = datetime.now(UTC) + INSTALL_REBOOT_GRACE
 
         if self.data is not None:
             # The stream owns the snapshot; the poll must not undo its work.
