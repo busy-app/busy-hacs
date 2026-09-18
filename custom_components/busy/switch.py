@@ -16,7 +16,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, PlatformNotReady
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
+from .coordinator import QUICK_CARD_ID, BusyBarConfigEntry, BusyBarCoordinator
 from .entity import PARALLEL_UPDATES, BusyBarEntity
 
 __all__ = ["PARALLEL_UPDATES", "async_setup_entry"]
@@ -35,6 +35,17 @@ _DEFAULT_BRIGHTNESS = 100
 _DEFAULT_VOLUME = 50
 
 
+def _running_card(data) -> str | None:
+    """
+    The card the running session belongs to, if one is running.
+    """
+    if data.snapshot.timer is None:
+        return None
+    if not timer.timer_state(data.snapshot.timer).is_running:
+        return None
+    return getattr(data.snapshot.timer.snapshot, "card_id", None)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: BusyBarConfigEntry,
@@ -51,6 +62,10 @@ async def async_setup_entry(
     async_add_entities(
         [
             *(SessionSwitch(coordinator, name, slot) for slot in ("busy", "custom")),
+            *(
+                QuickSessionSwitch(coordinator, name, kind)
+                for kind in ("infinite", "simple", "interval")
+            ),
             SessionPausedSwitch(coordinator, name),
             AutomaticBrightnessSwitch(coordinator, name),
             MuteSwitch(coordinator, name),
@@ -80,17 +95,6 @@ class SessionSwitch(BusyBarEntity, SwitchEntity):
         super().__init__(coordinator, name, f"session_{slot}")
         self._slot: types.BusyProfileSlot = slot
 
-    def _running_card(self) -> str | None:
-        """
-        The card the running session belongs to, if one is running.
-        """
-        data = self.coordinator.data
-        if data is None or data.snapshot.timer is None:
-            return None
-        if not timer.timer_state(data.snapshot.timer).is_running:
-            return None
-        return getattr(data.snapshot.timer.snapshot, "card_id", None)
-
     @property
     def is_on(self) -> bool | None:
         data = self.coordinator.data
@@ -99,7 +103,7 @@ class SessionSwitch(BusyBarEntity, SwitchEntity):
         card = data.cards.get(self._slot)
         if card is None:
             return None
-        return self._running_card() == card.id
+        return _running_card(data) == card.id
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self._change(partial(timer.start, slot=self._slot))
@@ -115,6 +119,93 @@ class SessionSwitch(BusyBarEntity, SwitchEntity):
             await work(self.coordinator.client)
         except timer.TimerNotRunningError:
             # Already not running, which is what turning it off means.
+            return
+        except BusyBarError as err:
+            raise HomeAssistantError(
+                translation_domain="busy",
+                translation_key="timer_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        await self.coordinator.async_request_refresh()
+
+
+class QuickSessionSwitch(BusyBarEntity, SwitchEntity):
+    """
+    Run a session of one kind, on neither of the bar's cards.
+
+    The two cards belong to their owner: they are what the bar's own
+    switch runs and what the BUSY app shows, and asking for forty-five
+    minutes this once should not rewrite one of them. So these three run a
+    session that carries its own kind, lengths and theme - from the
+    settings beside them, which an automation can change first - and name
+    a card outside both positions.
+
+    A switch rather than a button for the same reason the two above are
+    one: a session is a state. And naming a card of our own is what makes
+    the state readable - a session on that card, of this kind, is this
+    switch's, however it was started and whatever has restarted since.
+    """
+
+    def __init__(
+        self, coordinator: BusyBarCoordinator, name: str, kind: timer.TimerKind
+    ) -> None:
+        super().__init__(coordinator, name, f"session_{kind}")
+        self._kind: timer.TimerKind = kind
+
+    @property
+    def is_on(self) -> bool | None:
+        data = self.coordinator.data
+        if data is None:
+            return None
+        if _running_card(data) != QUICK_CARD_ID:
+            return False
+        running = data.snapshot.timer
+        assert running is not None  # _running_card said a session is on
+        return timer.kind_of_snapshot(running.snapshot) == self._kind
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        quick = self.coordinator.quick
+        interval = self._kind == "interval"
+        try:
+            await timer.start(
+                self.coordinator.client,
+                card_id=QUICK_CARD_ID,
+                kind=self._kind,
+                duration_ms=(
+                    None
+                    if self._kind == "infinite"
+                    else (quick.work_minutes if interval else quick.simple_minutes)
+                    * 60_000
+                ),
+                rest_ms=quick.rest_minutes * 60_000 if interval else None,
+                cycles=quick.cycles if interval else None,
+                theme=quick.themes.get(self._kind),
+            )
+        except (timer.PhaseTooShortError, ValueError) as err:
+            # The bar answers a length it will not run with a parse error
+            # about the whole snapshot, so this is the only place the
+            # reason is legible.
+            raise HomeAssistantError(
+                translation_domain="busy",
+                translation_key="phase_too_short",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        except BusyBarError as err:
+            raise HomeAssistantError(
+                translation_domain="busy",
+                translation_key="timer_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        await self.coordinator.async_request_refresh()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        # Only the session this switch is showing: one started elsewhere
+        # is not this switch's to end.
+        if not self.is_on:
+            return
+        try:
+            await timer.stop(self.coordinator.client)
+        except timer.TimerNotRunningError:
             return
         except BusyBarError as err:
             raise HomeAssistantError(

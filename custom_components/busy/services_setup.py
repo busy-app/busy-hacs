@@ -25,10 +25,11 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv, device_registry as dr
 
-from busylib import AsyncBusyBar
+from busylib import types
 from busylib.exceptions import BusyBarError, BusyBarFeatureUnavailableError
 from busylib.features import notification, timer
 
+from .coordinator import QUICK_CARD_ID, BusyBarCoordinator
 from .const import (
     APPLICATION_NAME,
     DEFAULT_DURATION,
@@ -41,7 +42,11 @@ from .const import (
     SERVICE_PLAY_SOUND,
     SERVICE_RESUME_SESSION,
     SERVICE_SET_THEME,
-    SERVICE_START_SESSION,
+    SERVICE_START_BUSY,
+    SERVICE_START_CUSTOM,
+    SERVICE_START_QUICK_INFINITE,
+    SERVICE_START_QUICK_INTERVAL,
+    SERVICE_START_QUICK_SIMPLE,
     SERVICE_STOP_SESSION,
 )
 
@@ -97,24 +102,32 @@ _SLOT = vol.In(("busy", "custom"))
 _MINUTES = vol.All(vol.Coerce(int), vol.Range(min=1, max=24 * 60))
 _PHASE = vol.All(vol.Coerce(int), vol.Range(min=5, max=8 * 60))
 
-_START_SCHEMA = _TARGET_SCHEMA.extend(
+# Starting a card is one action per position rather than one with a mode
+# to pick, because that is how an automation reads: "start busy" is the
+# whole thought, and a dashboard button needs no fields at all. A theme
+# here belongs to the session; the card keeps its own.
+_START_CARD_SCHEMA = _TARGET_SCHEMA.extend({vol.Optional("theme"): cv.string})
+
+# And one action per kind of quick session, for the same reason - plus
+# each kind's settings are different, and a single action could only
+# offer all of them and ignore most. Every field is optional: left out,
+# the value is the one set on the bar's own quick settings, so an
+# automation can either say what it wants or use what is configured.
+_QUICK_INFINITE_SCHEMA = _TARGET_SCHEMA.extend({vol.Optional("theme"): cv.string})
+
+_QUICK_SIMPLE_SCHEMA = _TARGET_SCHEMA.extend(
     {
-        # "Mode" is what the bar's two positions are called; `card` is what
-        # the API calls the thing each one points at.
-        vol.Optional("mode", default="busy"): _SLOT,
-        # The firmware's own words for the three kinds. Given, the
-        # session runs as that kind whatever the card holds, which is what
-        # makes "run a countdown for forty minutes" one call.
-        vol.Optional("kind"): vol.In(("infinite", "simple", "interval")),
-        # A theme here belongs to this session only; the card keeps its own.
-        vol.Optional("theme"): cv.string,
-        # These belong to the session, not to the card: they travel in
-        # the snapshot, so an automation that runs a 45-minute countdown
-        # every morning leaves both cards as their owner arranged them.
-        # Left out, the session takes the card's own settings.
         vol.Optional("duration"): _MINUTES,
+        vol.Optional("theme"): cv.string,
+    }
+)
+
+_QUICK_INTERVAL_SCHEMA = _TARGET_SCHEMA.extend(
+    {
+        vol.Optional("work"): _PHASE,
         vol.Optional("rest"): _PHASE,
         vol.Optional("cycles"): vol.All(vol.Coerce(int), vol.Range(min=2, max=35)),
+        vol.Optional("theme"): cv.string,
     }
 )
 
@@ -243,7 +256,7 @@ async def _for_each_bar(call: ServiceCall, work) -> None:
     """
     for coordinator in _coordinators(call.hass, call.data[ATTR_DEVICE_ID]):
         try:
-            await work(coordinator.client, call.data)
+            await work(coordinator, call.data)
         except timer.TimerNotRunningError as err:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
@@ -286,28 +299,59 @@ async def _for_each_bar(call: ServiceCall, work) -> None:
         await coordinator.async_request_refresh()
 
 
-async def _async_start_session(call: ServiceCall) -> None:
+def _start_card(slot: types.BusyProfileSlot):
     """
-    Start a session, with settings of its own if the call gives any.
-
-    Nothing here is written to the bar's cards. An automation that runs a
-    forty-five minute countdown every morning should leave the two cards
-    exactly as their owner arranged them - so the lengths travel in the
-    session instead, and the card only lends it a name and a theme.
+    Build the handler that starts what one of the bar's cards describes.
     """
 
-    async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
-        await timer.start(
-            client,
-            data["mode"],
-            kind=data.get("kind"),
-            duration_ms=_ms(data.get("duration")),
-            rest_ms=_ms(data.get("rest")),
-            cycles=data.get("cycles"),
-            theme=data.get("theme"),
-        )
+    async def handler(call: ServiceCall) -> None:
+        async def work(coordinator: BusyBarCoordinator, data: dict[str, Any]) -> None:
+            await timer.start(coordinator.client, slot, theme=data.get("theme"))
 
-    await _for_each_bar(call, work)
+        await _for_each_bar(call, work)
+
+    return handler
+
+
+def _start_quick(kind: timer.TimerKind):
+    """
+    Build the handler that starts a quick session of one kind.
+
+    Quick means two things. It carries its own settings, so nothing is
+    written to a card - the call says what to run and the snapshot says it
+    to the bar. And it names a card outside both switch positions, so the
+    bar's own two are not involved even by name; the BUSY app shows the
+    session under that other card, which is how its owner can tell where
+    it came from.
+
+    Anything the call leaves out comes from the bar's quick settings, the
+    ones shown as entities - so an automation can pass a length, or set
+    the number first and pass nothing.
+    """
+
+    async def handler(call: ServiceCall) -> None:
+        async def work(coordinator: BusyBarCoordinator, data: dict[str, Any]) -> None:
+            quick = coordinator.quick
+            duration = data.get("work" if kind == "interval" else "duration")
+            if duration is None and kind != "infinite":
+                duration = (
+                    quick.work_minutes if kind == "interval" else quick.simple_minutes
+                )
+            await timer.start(
+                coordinator.client,
+                card_id=QUICK_CARD_ID,
+                kind=kind,
+                duration_ms=_ms(duration),
+                rest_ms=_ms(data.get("rest", quick.rest_minutes))
+                if kind == "interval"
+                else None,
+                cycles=data.get("cycles", quick.cycles) if kind == "interval" else None,
+                theme=data.get("theme") or quick.themes.get(kind),
+            )
+
+        await _for_each_bar(call, work)
+
+    return handler
 
 
 async def _async_stop_session(call: ServiceCall) -> None:
@@ -316,22 +360,22 @@ async def _async_stop_session(call: ServiceCall) -> None:
     do-not-disturb rather than a session ending.
     """
 
-    async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
-        await timer.stop(client)
+    async def work(coordinator: BusyBarCoordinator, data: dict[str, Any]) -> None:
+        await timer.stop(coordinator.client)
 
     await _for_each_bar(call, work)
 
 
 async def _async_pause_session(call: ServiceCall) -> None:
-    async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
-        await timer.set_paused(client, True)
+    async def work(coordinator: BusyBarCoordinator, data: dict[str, Any]) -> None:
+        await timer.set_paused(coordinator.client, True)
 
     await _for_each_bar(call, work)
 
 
 async def _async_resume_session(call: ServiceCall) -> None:
-    async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
-        await timer.set_paused(client, False)
+    async def work(coordinator: BusyBarCoordinator, data: dict[str, Any]) -> None:
+        await timer.set_paused(coordinator.client, False)
 
     await _for_each_bar(call, work)
 
@@ -341,8 +385,8 @@ async def _async_next_phase(call: ServiceCall) -> None:
     Move an interval session on: work to rest, or rest to the next work.
     """
 
-    async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
-        await timer.next_phase(client)
+    async def work(coordinator: BusyBarCoordinator, data: dict[str, Any]) -> None:
+        await timer.next_phase(coordinator.client)
 
     await _for_each_bar(call, work)
 
@@ -352,12 +396,12 @@ async def _async_set_theme(call: ServiceCall) -> None:
     Change a theme, either for this session or for one of the cards.
     """
 
-    async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
+    async def work(coordinator: BusyBarCoordinator, data: dict[str, Any]) -> None:
         mode = data.get("mode")
         if mode is None:
-            await timer.set_session_theme(client, data["theme"])
+            await timer.set_session_theme(coordinator.client, data["theme"])
         else:
-            await timer.set_card_theme(client, mode, data["theme"])
+            await timer.set_card_theme(coordinator.client, mode, data["theme"])
 
     await _for_each_bar(call, work)
 
@@ -367,8 +411,8 @@ async def _async_play_sound(call: ServiceCall) -> None:
     Play one of the bar's built-in sounds.
     """
 
-    async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
-        await client.audio_play(
+    async def work(coordinator: BusyBarCoordinator, data: dict[str, Any]) -> None:
+        await coordinator.client.audio_play(
             stock_path=notification.STOCK_SOUNDS[data["sound"]],
             application_name=APPLICATION_NAME,
         )
@@ -385,8 +429,8 @@ async def _async_clear(call: ServiceCall) -> None:
     disappears on its own anyway.
     """
 
-    async def work(client: AsyncBusyBar, data: dict[str, Any]) -> None:
-        await client.display_clear(application_name=APPLICATION_NAME)
+    async def work(coordinator: BusyBarCoordinator, data: dict[str, Any]) -> None:
+        await coordinator.client.display_clear(application_name=APPLICATION_NAME)
 
     await _for_each_bar(call, work)
 
@@ -399,7 +443,19 @@ def async_register_services(hass: HomeAssistant) -> None:
         DOMAIN, SERVICE_NOTIFY, _async_notify, schema=_NOTIFY_SCHEMA
     )
     for name, handler, schema in (
-        (SERVICE_START_SESSION, _async_start_session, _START_SCHEMA),
+        (SERVICE_START_BUSY, _start_card("busy"), _START_CARD_SCHEMA),
+        (SERVICE_START_CUSTOM, _start_card("custom"), _START_CARD_SCHEMA),
+        (
+            SERVICE_START_QUICK_INFINITE,
+            _start_quick("infinite"),
+            _QUICK_INFINITE_SCHEMA,
+        ),
+        (SERVICE_START_QUICK_SIMPLE, _start_quick("simple"), _QUICK_SIMPLE_SCHEMA),
+        (
+            SERVICE_START_QUICK_INTERVAL,
+            _start_quick("interval"),
+            _QUICK_INTERVAL_SCHEMA,
+        ),
         (SERVICE_STOP_SESSION, _async_stop_session, _TARGET_SCHEMA),
         (SERVICE_PAUSE_SESSION, _async_pause_session, _TARGET_SCHEMA),
         (SERVICE_RESUME_SESSION, _async_resume_session, _TARGET_SCHEMA),
