@@ -140,6 +140,28 @@ def test_the_manifest_asks_for_the_library_it_uses() -> None:
     assert ">=2.6" in requirement
 
 
+def test_the_tests_run_against_the_library_the_manifest_asks_for() -> None:
+    """
+    Home Assistant installs what the manifest pins; these tests install
+    what pyproject pins. When the two drift, the suite passes against a
+    library nobody runs - which is how a release with new calls in it
+    still came back red here.
+    """
+    manifest = json.loads((COMPONENT / "manifest.json").read_text())
+    pinned = next(r for r in manifest["requirements"] if "busylib" in r)
+    project = (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text()
+    tested = next(
+        line.strip().strip('",')
+        for line in project.splitlines()
+        if "busylib" in line and ">=" in line
+    )
+
+    def floor(requirement: str) -> str:
+        return requirement.split(">=")[1].split(",")[0]
+
+    assert floor(tested) == floor(pinned), f"{tested} against {pinned}"
+
+
 def test_a_name_field_says_where_to_see_the_names() -> None:
     """
     Choosing an icon, a sound or a theme means typing a name, and a
