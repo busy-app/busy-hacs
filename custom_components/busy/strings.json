@@ -80,8 +80,11 @@
     "upload_failed": {
       "message": "The bar did not take the file: {error}"
     },
-    "screen_is_taken": {
-      "message": "{bar} is running a session, and a session takes the screen for as long as it lasts. There is no priority that draws over it: end the session, or let it finish."
+    "session_owns_the_screen": {
+      "message": "{bar} is running a session, and a session refuses every drawing while it lasts - there is no priority that gets past it. End the session, or let it finish."
+    },
+    "screen_is_busy": {
+      "message": "{bar} is showing something of its own and refused an ordinary notification. Turn on “Show it over other drawings” to put this one above it."
     }
   },
   "services": {

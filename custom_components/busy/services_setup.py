@@ -320,12 +320,23 @@ async def _async_notify(call: ServiceCall) -> None:
                         "error": f"{_named(call.hass, coordinator)}: {err}"
                     },
                 ) from err
-            # The bar answers "low priority", which sends the reader
-            # looking for a priority to raise. There is none: a running
-            # session blocks every drawing, whatever it asks for.
+            # "Low priority" is true and useless: what a person needs to
+            # know is which of the two cases this is. A running session
+            # refuses every drawing, whatever priority it asks for - the
+            # firmware sets a loader priority above the API's maximum.
+            # The bar's own screens sit lower, and an interrupting
+            # notification gets past them.
+            live = coordinator.data
+            running = (
+                live is not None
+                and live.snapshot.timer is not None
+                and timer.timer_state(live.snapshot.timer).is_running
+            )
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
-                translation_key="screen_is_taken",
+                translation_key=(
+                    "session_owns_the_screen" if running else "screen_is_busy"
+                ),
                 translation_placeholders={"bar": _named(call.hass, coordinator)},
             ) from err
         except BusyBarFeatureUnavailableError as err:
