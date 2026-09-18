@@ -142,10 +142,11 @@ def test_the_manifest_asks_for_the_library_it_uses() -> None:
 
 def test_a_name_field_says_where_to_see_the_names() -> None:
     """
-    Choosing an icon, a sound or a theme means typing a name. Home
-    Assistant renders these descriptions as Markdown, so the way to see
-    what the names look like is a link in the description - without one
-    the field is a blank box and a guess.
+    Choosing an icon, a sound or a theme means typing a name, and a
+    field with nothing but a blank box is a guess. Home Assistant
+    forbids URLs in these strings - they go to translators - so what
+    the description has to carry is the action that answers with the
+    names this bar actually has.
     """
     described = json.loads((COMPONENT / "strings.json").read_text())["services"]
 
@@ -154,7 +155,17 @@ def test_a_name_field_says_where_to_see_the_names() -> None:
         for field, spec in (body.get("fields") or {}).items():
             if field not in {"icon", "sound", "theme"}:
                 continue
-            if "https://" not in spec.get("description", ""):
+            if "List what a bar can show and play" not in spec.get("description", ""):
                 missing.append(f"{action}.{field}")
 
     assert not missing, f"no way to see the choices from: {missing}"
+
+
+def test_no_translation_carries_a_url() -> None:
+    """
+    hassfest refuses them: these strings are handed to translators, and
+    a link is not theirs to keep current. The integration's own
+    documentation link lives in the manifest, where it belongs.
+    """
+    for name in ("strings.json", "translations/en.json"):
+        assert "https://" not in (COMPONENT / name).read_text(), name
