@@ -87,11 +87,11 @@
         },
         "icon": {
           "name": "Icon",
-          "description": "The icon drawn at the left edge, by name. Any image the bar has, including one uploaded to it by this integration. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
+          "description": "The icon drawn at the left edge, by name. [See every icon](https://busy-app.github.io/busylib-py/guides/stock-assets/#icons) the firmware ships, or run the “List what a bar can show and play” action for this bar's own - including anything uploaded to it."
         },
         "sound": {
           "name": "Sound",
-          "description": "A sound to play with the notification; leave it at none for silence. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
+          "description": "A sound to play with the notification; leave it empty for silence. [Listen to them all](https://busy-app.github.io/busylib-py/guides/stock-assets/#sounds), or run the “List what a bar can show and play” action for this bar's own."
         },
         "duration": {
           "name": "Duration",
@@ -129,7 +129,7 @@
       "fields": {
         "theme": {
           "name": "Theme",
-          "description": "Show this session in a theme of your choosing. Nothing on the bar is changed: the card keeps its own theme, which the bar returns to when the session ends. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
+          "description": "Show this session in a theme of your choosing. Nothing on the bar is changed: the card keeps its own theme, which the bar returns to when the session ends. [See every theme](https://busy-app.github.io/busylib-py/guides/stock-assets/#themes), or run the “List what a bar can show and play” action for this bar's own."
         }
       }
     },
@@ -139,7 +139,7 @@
       "fields": {
         "theme": {
           "name": "Theme",
-          "description": "Show this session in a theme of your choosing. Nothing on the bar is changed: the card keeps its own theme, which the bar returns to when the session ends. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
+          "description": "Show this session in a theme of your choosing. Nothing on the bar is changed: the card keeps its own theme, which the bar returns to when the session ends. [See every theme](https://busy-app.github.io/busylib-py/guides/stock-assets/#themes), or run the “List what a bar can show and play” action for this bar's own."
         }
       }
     },
@@ -149,7 +149,7 @@
       "fields": {
         "theme": {
           "name": "Theme",
-          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
+          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used. [See every theme](https://busy-app.github.io/busylib-py/guides/stock-assets/#themes), or run the “List what a bar can show and play” action for this bar's own."
         }
       }
     },
@@ -163,7 +163,7 @@
         },
         "theme": {
           "name": "Theme",
-          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
+          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used. [See every theme](https://busy-app.github.io/busylib-py/guides/stock-assets/#themes), or run the “List what a bar can show and play” action for this bar's own."
         }
       }
     },
@@ -185,7 +185,7 @@
         },
         "theme": {
           "name": "Theme",
-          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
+          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used. [See every theme](https://busy-app.github.io/busylib-py/guides/stock-assets/#themes), or run the “List what a bar can show and play” action for this bar's own."
         }
       }
     },
@@ -199,7 +199,7 @@
       "fields": {
         "theme": {
           "name": "Theme",
-          "description": "A theme this bar has. The bar's own list is on its theme entities; a name it does not have is refused rather than stored. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
+          "description": "A theme this bar has. The bar's own list is on its theme entities; a name it does not have is refused rather than stored. [See every theme](https://busy-app.github.io/busylib-py/guides/stock-assets/#themes), or run the “List what a bar can show and play” action for this bar's own."
         },
         "mode": {
           "name": "Mode",
@@ -213,7 +213,7 @@
       "fields": {
         "sound": {
           "name": "Sound",
-          "description": "Which sound to play. Any the bar has: the three with short names, the timer's own, or one uploaded to it. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
+          "description": "Which sound to play - any the bar has, the timer's own included. [Listen to them all](https://busy-app.github.io/busylib-py/guides/stock-assets/#sounds), or run the “List what a bar can show and play” action for this bar's own."
         }
       }
     },
@@ -235,7 +235,7 @@
     },
     "list_assets": {
       "name": "List what a bar can show and play",
-      "description": "Answers with the icons, animations, sounds, fonts and themes this bar holds - the firmware's own and anything uploaded to it. Which names exist is a fact about one bar, so this asks it rather than offering a list that can only be wrong about somebody's.",
+      "description": "Answers with the icons, animations, sounds, fonts and themes this bar holds - the firmware's own and anything uploaded to it, which no fixed list can know. [The whole set, with pictures](https://busy-app.github.io/busylib-py/guides/stock-assets/).",
       "fields": {}
     }
   },

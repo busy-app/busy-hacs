@@ -138,3 +138,23 @@ def test_the_manifest_asks_for_the_library_it_uses() -> None:
     requirement = next(r for r in manifest["requirements"] if "busylib" in r)
 
     assert ">=2.6" in requirement
+
+
+def test_a_name_field_says_where_to_see_the_names() -> None:
+    """
+    Choosing an icon, a sound or a theme means typing a name. Home
+    Assistant renders these descriptions as Markdown, so the way to see
+    what the names look like is a link in the description - without one
+    the field is a blank box and a guess.
+    """
+    described = json.loads((COMPONENT / "strings.json").read_text())["services"]
+
+    missing = []
+    for action, body in described.items():
+        for field, spec in (body.get("fields") or {}).items():
+            if field not in {"icon", "sound", "theme"}:
+                continue
+            if "https://" not in spec.get("description", ""):
+                missing.append(f"{action}.{field}")
+
+    assert not missing, f"no way to see the choices from: {missing}"
