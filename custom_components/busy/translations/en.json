@@ -61,6 +61,12 @@
     },
     "unknown_theme": {
       "message": "This bar has no theme called {theme}. It has: {available}."
+    },
+    "phase_too_short": {
+      "message": "The bar ignores phases shorter than five minutes and keeps what it had: {error}"
+    },
+    "invalid_timer_request": {
+      "message": "That does not fit the mode's timer: {error}"
     }
   },
   "services": {
@@ -108,15 +114,27 @@
     },
     "start_timer": {
       "name": "Start the timer",
-      "description": "Starts the session one of the bar's two cards describes. The kind of session and its lengths come from the card.",
+      "description": "Starts the timer of one of the bar's two modes. Giving a duration changes that mode's timer on the bar, which the bar and the BUSY app will both show - a session cannot carry a length of its own.",
       "fields": {
-        "card": {
-          "name": "Card",
-          "description": "Which of the bar's two cards to start."
+        "mode": {
+          "name": "Mode",
+          "description": "Which of the bar's two modes to start, BUSY or CUSTOM."
         },
         "theme": {
           "name": "Theme",
-          "description": "Show this session in a different theme. The card keeps its own, which the bar returns to when the session ends."
+          "description": "Show this session in a different theme. The mode keeps its own, which the bar returns to when the session ends."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Minutes of work, or the whole countdown for a countdown mode. Saved to the mode, since a session cannot have a length of its own. The bar ignores anything under five minutes."
+        },
+        "rest": {
+          "name": "Rest",
+          "description": "Minutes of rest between work phases. Saved to the mode, and also at least five minutes."
+        },
+        "cycles": {
+          "name": "Cycles",
+          "description": "How many work phases the session runs. Saved to the mode."
         }
       }
     },
@@ -144,9 +162,9 @@
           "name": "Theme",
           "description": "A theme this bar has. The bar's own list is on its theme entities; a name it does not have is refused rather than stored."
         },
-        "card": {
-          "name": "Card",
-          "description": "Change this card's own theme instead of the running session's."
+        "mode": {
+          "name": "Mode",
+          "description": "Change this mode's own theme instead of the running session's."
         }
       }
     },
@@ -251,6 +269,9 @@
       },
       "theme_custom": {
         "name": "Theme custom card"
+      },
+      "timezone": {
+        "name": "Timezone"
       }
     },
     "switch": {
@@ -265,6 +286,9 @@
       },
       "mute": {
         "name": "Volume mute"
+      },
+      "automatic_updates": {
+        "name": "Automatic firmware updates"
       }
     },
     "update": {
