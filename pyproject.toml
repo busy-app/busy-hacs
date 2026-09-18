@@ -14,6 +14,11 @@ test = [
   "pytest-homeassistant-custom-component>=0.13.365",
   # The integration's own requirement, as its manifest declares it.
   "busylib[aiohttp]>=2.6,<3",
+  # The camera component imports it at module level, so the screen entity
+  # cannot even be loaded without it. Home Assistant installs it itself
+  # from the camera integration's own manifest; the tests have no such
+  # machinery and need it named here.
+  "pyturbojpeg",
   # services.yaml is read back in a test, to check every action offered
   # in the UI is also described.
   "pyyaml>=6",
