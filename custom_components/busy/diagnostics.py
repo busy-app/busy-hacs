@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from busylib.exceptions import BusyBarError
+from busylib.features import assets
+
 from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.const import CONF_TOKEN
 from homeassistant.core import HomeAssistant
@@ -72,6 +75,10 @@ async def async_get_config_entry_diagnostics(
 
     return {
         "entry": async_redact_data(dict(config_entry.data), TO_REDACT),
+        # What this bar can draw and play. Here rather than on the device
+        # page because it is long, it is per-bar, and the moment it is
+        # wanted is when an action refused a name.
+        "assets": await _assets(coordinator),
         "reached_at": coordinator.client.base_url,
         "device": device,
         "firmware": firmware,
@@ -85,3 +92,27 @@ async def async_get_config_entry_diagnostics(
         # sections above do not name. Frames are excluded by the model.
         "snapshot": None if snapshot is None else snapshot.model_dump(mode="json"),
     }
+
+
+async def _assets(coordinator: Any) -> dict[str, Any]:
+    """
+    Everything this bar can draw and play, by kind.
+
+    Read here rather than kept up to date: assets change when somebody
+    uploads or deletes one, which is rare and never something an
+    automation waits on. A bar that cannot be reached says so instead of
+    failing the whole download.
+    """
+    try:
+        found = await assets.discover_assets(coordinator.client)
+    except BusyBarError as err:
+        return {"error": str(err)}
+
+    catalogue: dict[str, Any] = {}
+    for asset in found:
+        kind = catalogue.setdefault(asset.kind, {"shipped": [], "uploaded": {}})
+        if asset.application is None:
+            kind["shipped"].append(asset.reference)
+        else:
+            kind["uploaded"].setdefault(asset.application, []).append(asset.reference)
+    return catalogue

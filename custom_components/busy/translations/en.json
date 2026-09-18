@@ -66,7 +66,7 @@
       "message": "The bar will not run a session of that length: {error}"
     },
     "invalid_timer_request": {
-      "message": "That does not fit the mode's timer: {error}"
+      "message": "The bar cannot do that: {error}"
     }
   },
   "services": {
@@ -84,11 +84,11 @@
         },
         "icon": {
           "name": "Icon",
-          "description": "An icon to draw at the left edge. The list holds what the firmware ships, including the Draw Tool's set under the same names it shows there; any other icon on the bar can be typed in. A name the bar does not have is refused with the list it does have."
+          "description": "The icon drawn at the left edge, by name. Any image the bar has, including one uploaded to it by this integration - the layout reads the width from the file, and an icon too big for the panel is refused rather than drawn over the text."
         },
         "sound": {
           "name": "Sound",
-          "description": "A built-in sound, played with the notification."
+          "description": "A sound to play with the notification. Any the bar has, by name; leave it at none for silence."
         },
         "duration": {
           "name": "Duration",
@@ -202,7 +202,7 @@
       "fields": {
         "sound": {
           "name": "Sound",
-          "description": "Which sound to play."
+          "description": "Which sound to play. Any the bar has: the three with short names, the timer's own, or one uploaded to it. A name this bar does not have is refused with the list of the ones it does."
         }
       }
     },
