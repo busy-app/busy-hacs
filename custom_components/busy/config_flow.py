@@ -26,6 +26,21 @@ from .discovery import async_discover_busy
 _LOGGER = logging.getLogger(__name__)
 
 
+def _reachable_address(discovery_info: Any) -> str | None:
+    """
+    The announced address Home Assistant can actually use.
+
+    A bar announces every address it has, and one of them is its own USB
+    network - which answers only for the machine it is plugged into. Home
+    Assistant is rarely that machine, so the Wi-Fi address is the one
+    worth remembering, and the USB one only as a last resort.
+    """
+    announced = discovery_info.ip_addresses or [discovery_info.ip_address]
+    addresses = [str(ip) for ip in announced if ip.version == 4]
+    over_wifi = [ip for ip in addresses if not ip.startswith(BUSYBAR_USB_SUBNET)]
+    return next(iter(over_wifi or addresses), None)
+
+
 def _announced_address(ip: str) -> BusyBarAddress:
     """Classify one announced address the way busylib's discovery does.
 
@@ -98,7 +113,13 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         # busylib's own device parsing reads it from.
         device_name = discovery_info.properties.get("name") or "BUSY Bar"
         await self.async_set_unique_id(device_id)
-        self._abort_if_unique_id_configured()
+        # With the address, not without it: a bar that came back on a new
+        # lease announces itself here, and aborting empty-handed would
+        # leave the entry pointing at the address it no longer has. This
+        # is the moment the new one is known.
+        self._abort_if_unique_id_configured(
+            updates={CONF_HOST: _reachable_address(discovery_info)}
+        )
         self.context["title_placeholders"] = {"name": device_name}
         # The announcement already carries the addresses needed to reach
         # this one bar, so keep them rather than throwing them away and
@@ -309,7 +330,12 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
             # Remembering the address is what lets setup skip the ten-second
             # mDNS scan. It is a hint, not the identity: the device_id above
             # is that, and a bar that has moved is looked for again.
-            CONF_HOST: self.device.get_address(),
+            # Over Wi-Fi by preference: `get_address()` answers with the
+            # USB one first, which is right for a bar plugged into the
+            # machine asking and wrong for Home Assistant, which is
+            # usually somewhere else entirely.
+            CONF_HOST: self.device.get_address("over_wifi")
+            or self.device.get_address(),
         }
 
         return self.async_create_entry(

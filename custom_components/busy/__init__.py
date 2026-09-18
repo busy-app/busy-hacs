@@ -104,7 +104,12 @@ async def _async_client(
         raise ConfigEntryNotReady(translation_key="device_unreachable")
 
     client = await hass.async_add_executor_job(
-        partial(device.to_async_client, token=token, transport=transport)
+        partial(
+            device.to_async_client,
+            affinity="over_wifi" if device.get_address("over_wifi") else None,
+            token=token,
+            transport=transport,
+        )
     )
     if client is None:
         raise ConfigEntryNotReady(translation_key="device_unreachable")
@@ -118,7 +123,8 @@ async def _async_client(
         await client.aclose()
         raise ConfigEntryNotReady(translation_key="device_unreachable")
 
-    found = device.get_address()
+    # The address Home Assistant can reach, not the bar's USB one.
+    found = device.get_address("over_wifi") or device.get_address()
     if found and found != host:
         hass.config_entries.async_update_entry(
             entry, data={**entry.data, CONF_HOST: found}
