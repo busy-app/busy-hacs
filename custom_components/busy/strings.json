@@ -218,8 +218,8 @@
           "unknown": "Unknown"
         }
       },
-      "selector": {
-        "name": "Selector",
+      "switch_position": {
+        "name": "Switch position",
         "state": {
           "busy": "Busy",
           "custom": "Custom",
@@ -246,9 +246,6 @@
       }
     },
     "select": {
-      "timezone": {
-        "name": "Timezone"
-      },
       "theme_busy": {
         "name": "Theme busy card"
       },
@@ -263,11 +260,8 @@
       "automatic_brightness": {
         "name": "Brightness automatic"
       },
-      "automatic_updates": {
-        "name": "Automatic firmware updates"
-      },
       "timer_paused": {
-        "name": "Timer paused"
+        "name": "Paused"
       },
       "mute": {
         "name": "Volume mute"
@@ -289,31 +283,31 @@
         "name": "Press Start"
       },
       "next_phase": {
-        "name": "Timer next phase"
+        "name": "Next phase"
       },
       "stop_timer": {
-        "name": "Timer stop"
+        "name": "End session"
       },
-      "selector_busy": {
-        "name": "Selector to Busy"
+      "switch_busy": {
+        "name": "Switch to Busy"
       },
-      "selector_custom": {
-        "name": "Selector to Custom"
+      "switch_custom": {
+        "name": "Switch to Custom"
       },
-      "selector_off": {
-        "name": "Selector to Off"
+      "switch_off": {
+        "name": "Switch to Off"
       },
-      "selector_apps": {
-        "name": "Selector to Apps"
+      "switch_apps": {
+        "name": "Switch to Apps"
       },
-      "selector_settings": {
-        "name": "Selector to Settings"
+      "switch_settings": {
+        "name": "Switch to Settings"
       },
-      "wheel_up": {
-        "name": "Wheel up"
+      "scroll_left": {
+        "name": "Scroll left"
       },
-      "wheel_down": {
-        "name": "Wheel down"
+      "scroll_right": {
+        "name": "Scroll right"
       }
     },
     "image": {
