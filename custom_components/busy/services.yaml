@@ -1,5 +1,7 @@
 notify:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
   fields:
@@ -147,6 +149,8 @@ notify:
 
 start_busy:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
   fields:
@@ -174,6 +178,8 @@ start_busy:
 
 start_custom:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
   fields:
@@ -201,6 +207,8 @@ start_custom:
 
 start_quick_infinite:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
   fields:
@@ -228,6 +236,8 @@ start_quick_infinite:
 
 start_quick_simple:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
   fields:
@@ -263,6 +273,8 @@ start_quick_simple:
 
 start_quick_interval:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
   fields:
@@ -314,26 +326,36 @@ start_quick_interval:
 
 stop_session:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
 
 pause_session:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
 
 resume_session:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
 
 next_phase:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
 
 set_theme:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
   fields:
@@ -368,6 +390,8 @@ set_theme:
 
 play_sound:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy
   fields:
@@ -383,5 +407,7 @@ play_sound:
 
 clear:
   target:
+    entity:
+      integration: busy
     device:
       integration: busy

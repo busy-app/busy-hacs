@@ -61,12 +61,14 @@ async def async_setup_entry(
 
     async_add_entities(
         [
+            # This order is the room card's: what to do about a running
+            # session first, then the two cards, then the quick ones.
+            SessionPausedSwitch(coordinator, name),
             *(SessionSwitch(coordinator, name, slot) for slot in ("busy", "custom")),
             *(
                 QuickSessionSwitch(coordinator, name, kind)
-                for kind in ("infinite", "simple", "interval")
+                for kind in ("simple", "interval", "infinite")
             ),
-            SessionPausedSwitch(coordinator, name),
             AutomaticBrightnessSwitch(coordinator, name),
             MuteSwitch(coordinator, name),
         ]
