@@ -2,8 +2,6 @@ notify:
   target:
     entity:
       integration: busy
-    device:
-      integration: busy
   fields:
     line_1:
       required: true
@@ -156,8 +154,6 @@ start_busy:
   target:
     entity:
       integration: busy
-    device:
-      integration: busy
   fields:
     theme:
       # The themes the firmware ships; custom_value takes one an owner
@@ -184,8 +180,6 @@ start_busy:
 start_custom:
   target:
     entity:
-      integration: busy
-    device:
       integration: busy
   fields:
     theme:
@@ -214,8 +208,6 @@ start_quick_infinite:
   target:
     entity:
       integration: busy
-    device:
-      integration: busy
   fields:
     theme:
       # The themes the firmware ships; custom_value takes one an owner
@@ -242,8 +234,6 @@ start_quick_infinite:
 start_quick_simple:
   target:
     entity:
-      integration: busy
-    device:
       integration: busy
   fields:
     duration:
@@ -279,8 +269,6 @@ start_quick_simple:
 start_quick_interval:
   target:
     entity:
-      integration: busy
-    device:
       integration: busy
   fields:
     work:
@@ -333,35 +321,25 @@ stop_session:
   target:
     entity:
       integration: busy
-    device:
-      integration: busy
 
 pause_session:
   target:
     entity:
-      integration: busy
-    device:
       integration: busy
 
 resume_session:
   target:
     entity:
       integration: busy
-    device:
-      integration: busy
 
 next_phase:
   target:
     entity:
       integration: busy
-    device:
-      integration: busy
 
 set_theme:
   target:
     entity:
-      integration: busy
-    device:
       integration: busy
   fields:
     theme:
@@ -397,8 +375,6 @@ play_sound:
   target:
     entity:
       integration: busy
-    device:
-      integration: busy
   fields:
     sound:
       required: true
@@ -416,6 +392,4 @@ play_sound:
 clear:
   target:
     entity:
-      integration: busy
-    device:
       integration: busy
