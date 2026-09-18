@@ -111,7 +111,7 @@
         },
         "icon": {
           "name": "Icon",
-          "description": "The icon drawn at the left edge, by name. [See every icon](https://busy-app.github.io/busylib-py/guides/stock-assets/#icons) the firmware ships, or run the “List what a bar can show and play” action for this bar's own - including anything uploaded to it. A bare name is read as your own upload first, then as a built-in; write `draw_tool/logo` to mean a file another app uploaded, which is copied into Home Assistant's folder the first time you name it."
+          "description": "The icon drawn at the left edge, by name. [See every icon](https://busy-app.github.io/busylib-py/guides/stock-assets/#icons) the firmware ships, or run the “List what a bar can show and play” action for this bar's own - including anything uploaded to it. A bare name is read as your own upload first, then as a built-in; write `draw_tool/logo` - or `draw_tool/logo.png` - to mean a file another app uploaded, which is copied into Home Assistant's folder the first time you name it."
         },
         "sound": {
           "name": "Sound",

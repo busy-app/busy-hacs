@@ -161,9 +161,11 @@ async def test_a_bar_answers_with_what_it_can_show_and_play(
     assert "clock_5x5" in catalogue["images"]["shipped"]
     assert "volume_change" in catalogue["sounds"]["shipped"]
     assert catalogue["themes"]["shipped"] == ["dnd", "meeting"]
-    # Uploads are kept apart by the application that put them there: a
-    # name is only usable by the application whose folder it is in.
-    assert catalogue["images"]["uploaded"] == {"home_assistant": ["logo"]}
+    # Every name is written the way a field takes it. Ours wins its bare
+    # name; somebody else's carries the folder, which is both the only
+    # way to ask for it and the sign that it is not ours.
+    assert catalogue["images"]["yours"] == ["logo"]
+    assert catalogue["images"]["other_apps"] == []
 
 
 async def test_a_notification_can_size_its_two_lines_apart(
@@ -425,3 +427,43 @@ async def test_taking_a_file_never_writes_over_one_of_your_own(
             },
             blocking=True,
         )
+
+
+async def test_an_upload_can_be_named_with_its_file_name(
+    hass, prod_entry, bars, busy_network, quiet_snapshot
+) -> None:
+    """
+    `draw_tool/logo.png` is what somebody sees on their own disk and in
+    a listing of the bar's storage, so it is taken as readily as the
+    name without the extension.
+    """
+    bar = FakeBar()
+    bar.UPLOADS = {"draw_tool": ["logo.png"]}
+    bars[PROD_HOST] = bar
+    prod_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+
+    async def copy(client, asset, application_name):
+        bar.UPLOADS.setdefault(application_name, []).append(asset.reference)
+        return replace(asset, application=application_name)
+
+    with (
+        patch("custom_components.busy.services_setup.assets.copy_to_application", copy),
+        patch(
+            "custom_components.busy.services_setup.notification.notify", AsyncMock()
+        ) as notified,
+    ):
+        await hass.services.async_call(
+            DOMAIN,
+            "notify",
+            {
+                "device_id": _device_id(hass, prod_entry),
+                "line_1": "Deployed",
+                "icon": "draw_tool/logo.png",
+            },
+            blocking=True,
+        )
+
+    _, kwargs = notified.call_args
+    assert kwargs["icon"].path == "logo.png"

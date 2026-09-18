@@ -590,6 +590,11 @@ async def _async_list_assets(call: ServiceCall) -> ServiceResponse:
     dropdown can only be wrong about somebody's bar, so this asks the
     bar - and answers where a person can read it, in the action's own
     response rather than in a log or a diagnostics download.
+
+    Three lists per kind, all in the form a field takes: what the
+    firmware ships, what this integration uploaded, and what other
+    applications did - the last named by folder, since that is both the
+    only way to ask for one and the warning that it is somebody else's.
     """
     answer: dict[str, Any] = {}
     for coordinator in _coordinators(call.hass, _targeted_devices(call)):
@@ -601,13 +606,23 @@ async def _async_list_assets(call: ServiceCall) -> ServiceResponse:
                 translation_key="device_unreachable",
             ) from err
 
+        # Every name here is written the way it is typed into a field,
+        # so a list can be read straight into an automation. Only an
+        # upload carries a folder: the firmware's own files all sit in
+        # one place, and qualifying them would invent a structure the
+        # bar does not have and a name it would not resolve.
         kinds: dict[str, Any] = {}
         for asset in found:
-            names = kinds.setdefault(f"{asset.kind}s", {"shipped": [], "uploaded": {}})
-            if asset.application is None:
+            names = kinds.setdefault(
+                f"{asset.kind}s", {"shipped": [], "yours": [], "other_apps": []}
+            )
+            if not asset.is_upload:
                 names["shipped"].append(asset.name)
+            elif asset.application == APPLICATION_NAME:
+                # Yours wins its bare name, so that is what to type.
+                names["yours"].append(asset.name)
             else:
-                names["uploaded"].setdefault(asset.application, []).append(asset.name)
+                names["other_apps"].append(notification.upload_for(asset))
         answer[_named(call.hass, coordinator)] = kinds
     return answer
 
@@ -643,8 +658,15 @@ async def _resolve(coordinator: BusyBarCoordinator, kind: str, name: str):
                 and asset.is_upload
                 # A bare name, or the folder and the name: "draw_tool/logo"
                 # is the one form that cannot mean two files, and the form
-                # the catalogue shows an upload under.
-                and name in (asset.name, notification.upload_for(asset))
+                # the catalogue shows an upload under. The file name is
+                # taken as readily as the name without its extension -
+                # it is what a person sees on their own disk.
+                and name
+                in (
+                    asset.name,
+                    notification.upload_for(asset),
+                    f"{asset.application}/{asset.reference}",
+                )
             ),
             None,
         )
