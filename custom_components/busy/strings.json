@@ -85,6 +85,9 @@
     },
     "screen_is_busy": {
       "message": "{bar} is showing something of its own and refused an ordinary notification. Turn on “Show it over other drawings” to put this one above it."
+    },
+    "unknown_asset": {
+      "message": "This bar has no {kind} called {name}. It has: {available}."
     }
   },
   "services": {

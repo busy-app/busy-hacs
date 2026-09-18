@@ -642,7 +642,30 @@ async def _resolve(coordinator: BusyBarCoordinator, kind: str, name: str):
             None,
         )
         if theirs is None:
-            raise
+            # A name that is on no bar is a mistake in the automation,
+            # not a device failure: say what this bar does have, the way
+            # a wrong theme already does.
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_asset",
+                translation_placeholders={
+                    "kind": "icon" if kind == "image" else "sound",
+                    "name": name,
+                    "available": ", ".join(
+                        sorted(
+                            asset.name
+                            for asset in await assets.discover_assets(
+                                coordinator.client
+                            )
+                            if asset.kind == kind
+                            and (
+                                not asset.is_upload
+                                or asset.application == APPLICATION_NAME
+                            )
+                        )
+                    ),
+                },
+            ) from None
         _LOGGER.info(
             "copying %r from %s so Home Assistant can use it",
             theirs.reference,

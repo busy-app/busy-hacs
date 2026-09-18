@@ -328,3 +328,31 @@ async def test_an_icon_somebody_else_uploaded_is_taken_over_and_used(
     assert copied == [("draw_tool", "home_assistant")]
     _, kwargs = notified.call_args
     assert kwargs["icon"].path == "my_logo.png"
+
+
+async def test_a_name_no_bar_has_says_what_this_one_has(
+    hass, prod_entry, bars, busy_network, quiet_snapshot
+) -> None:
+    """
+    Nothing validates a typed name when an automation is saved - Home
+    Assistant asks no integration about it, and the bar it will run
+    against may not even be on yet. So the miss has to land as a
+    mistake in the automation, naming what is there, rather than as an
+    unknown error out of the library.
+    """
+    bars[PROD_HOST] = FakeBar()
+    prod_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+
+    with pytest.raises(ServiceValidationError, match="has no icon"):
+        await hass.services.async_call(
+            DOMAIN,
+            "notify",
+            {
+                "device_id": _device_id(hass, prod_entry),
+                "line_1": "Deployed",
+                "icon": "not_on_any_bar",
+            },
+            blocking=True,
+        )
