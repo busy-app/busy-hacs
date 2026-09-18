@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from functools import partial
+
 from busylib import types
 from busylib.exceptions import BusyBarError
 from busylib.features import timer
@@ -48,43 +50,76 @@ async def async_setup_entry(
 
     async_add_entities(
         [
-            SmartHomeSwitch(coordinator, name),
-            TimerPausedSwitch(coordinator, name),
+            *(SessionSwitch(coordinator, name, slot) for slot in ("busy", "custom")),
+            SessionPausedSwitch(coordinator, name),
             AutomaticBrightnessSwitch(coordinator, name),
             MuteSwitch(coordinator, name),
         ]
     )
 
 
-class SmartHomeSwitch(BusyBarEntity, SwitchEntity):
+class SessionSwitch(BusyBarEntity, SwitchEntity):
     """
-    The bar's own smart-home switch.
+    Whether this mode's session is the one running.
 
-    A switch, not a light: it starts and stops a Busy session, and Home
-    Assistant drew it as a lamp with a brightness slider that did nothing.
+    A switch rather than a button because a session is a state, not an
+    event: turning it on starts this mode, turning it off ends whatever is
+    running. Two of them, one per mode, and only one can be on - the bar
+    runs one session at a time, so starting the other ends this one and
+    the two switches follow, without either of them having to know about
+    the other.
+
+    That is why "is it on" asks which card the running session belongs to
+    rather than remembering what was pressed here: a session started on
+    the bar itself, or by an automation, moves these switches too.
     """
 
-    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "smart_home_switch")
+    def __init__(
+        self, coordinator: BusyBarCoordinator, name: str, slot: types.BusyProfileSlot
+    ) -> None:
+        super().__init__(coordinator, name, f"session_{slot}")
+        self._slot: types.BusyProfileSlot = slot
+
+    def _running_card(self) -> str | None:
+        """
+        The card the running session belongs to, if one is running.
+        """
+        data = self.coordinator.data
+        if data is None or data.snapshot.timer is None:
+            return None
+        if not timer.timer_state(data.snapshot.timer).is_running:
+            return None
+        return getattr(data.snapshot.timer.snapshot, "card_id", None)
 
     @property
     def is_on(self) -> bool | None:
         data = self.coordinator.data
-        return None if data is None else data.smart_home
+        if data is None:
+            return None
+        card = data.cards.get(self._slot)
+        if card is None:
+            return None
+        return self._running_card() == card.id
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        await self._set(True)
+        await self._change(partial(timer.start, slot=self._slot))
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        await self._set(False)
+        # Only if this mode is the one running: a session someone started
+        # on the other mode is not this switch's to end.
+        if self.is_on:
+            await self._change(timer.stop)
 
-    async def _set(self, state: bool) -> None:
+    async def _change(self, work) -> None:
         try:
-            await self.coordinator.client.smart_home_switch_set(state)
+            await work(self.coordinator.client)
+        except timer.TimerNotRunningError:
+            # Already not running, which is what turning it off means.
+            return
         except BusyBarError as err:
             raise HomeAssistantError(
                 translation_domain="busy",
-                translation_key="setting_failed",
+                translation_key="timer_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
         await self.coordinator.async_request_refresh()
@@ -178,7 +213,7 @@ class MuteSwitch(_SettingSwitch):
         )
 
 
-class TimerPausedSwitch(BusyBarEntity, SwitchEntity):
+class SessionPausedSwitch(BusyBarEntity, SwitchEntity):
     """
     Whether the running session is paused.
 
@@ -189,7 +224,7 @@ class TimerPausedSwitch(BusyBarEntity, SwitchEntity):
     """
 
     def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "timer_paused")
+        super().__init__(coordinator, name, "session_paused")
 
     @property
     def is_on(self) -> bool | None:
