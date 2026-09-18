@@ -238,6 +238,12 @@
       },
       "session_theme": {
         "name": "Session theme"
+      },
+      "wifi_signal": {
+        "name": "Wi-Fi signal"
+      },
+      "usb_voltage": {
+        "name": "USB voltage"
       }
     },
     "binary_sensor": {
@@ -259,22 +265,22 @@
         "name": "Volume"
       },
       "busy_work": {
-        "name": "Busy work"
+        "name": "Busy timer work"
       },
       "busy_rest": {
-        "name": "Busy rest"
+        "name": "Busy timer rest"
       },
       "busy_cycles": {
-        "name": "Busy cycles"
+        "name": "Busy timer cycles"
       },
       "custom_work": {
-        "name": "Custom work"
+        "name": "Custom timer work"
       },
       "custom_rest": {
-        "name": "Custom rest"
+        "name": "Custom timer rest"
       },
       "custom_cycles": {
-        "name": "Custom cycles"
+        "name": "Custom timer cycles"
       }
     },
     "select": {
