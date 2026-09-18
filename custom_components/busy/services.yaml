@@ -427,3 +427,18 @@ list_assets:
   target:
     entity:
       integration: busy
+
+upload_asset:
+  target:
+    entity:
+      integration: busy
+  fields:
+    file:
+      required: true
+      example: /config/www/logo.png
+      selector:
+        text:
+    name:
+      example: deploy_done.png
+      selector:
+        text:

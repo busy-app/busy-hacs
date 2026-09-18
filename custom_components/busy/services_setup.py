@@ -15,10 +15,12 @@ draw, and only busylib knows the device's version - so the layout lives in
 
 from __future__ import annotations
 
+from functools import partial
 import logging
+import pathlib
 from typing import Any
 
-from busylib import types
+from busylib import converter, types
 from busylib.exceptions import (
     BusyBarAPIError,
     BusyBarError,
@@ -66,6 +68,7 @@ from .const import (
     SERVICE_START_QUICK_INTERVAL,
     SERVICE_START_QUICK_SIMPLE,
     SERVICE_STOP_SESSION,
+    SERVICE_UPLOAD_ASSET,
 )
 from .coordinator import QUICK_CARD_ID, BusyBarCoordinator
 
@@ -169,6 +172,13 @@ _SET_THEME_SCHEMA = _TARGET_SCHEMA.extend(
 )
 
 _PLAY_SOUND_SCHEMA = _TARGET_SCHEMA.extend({vol.Required("sound"): cv.string})
+
+_UPLOAD_SCHEMA = _TARGET_SCHEMA.extend(
+    {
+        vol.Required("file"): cv.string,
+        vol.Optional("name"): cv.string,
+    }
+)
 
 
 def _targeted_devices(call: ServiceCall) -> list[str]:
@@ -276,12 +286,18 @@ async def _async_notify(call: ServiceCall) -> None:
     for coordinator in _coordinators(call.hass, _targeted_devices(call)):
         client = coordinator.client
         try:
+            icon = _optional(data.get("icon"))
+            sound = _optional(data.get("sound"))
             await notification.notify(
                 client,
                 data["line_1"],
                 line_2=data.get("line_2"),
-                icon=_optional(data.get("icon")),
-                sound=_optional(data.get("sound")),
+                icon=await _resolve(coordinator, "image", icon) if icon else None,
+                sound=(
+                    (await _resolve(coordinator, "sound", sound)).name
+                    if sound
+                    else None
+                ),
                 font=data["font"],
                 font_2=data.get("font_2"),
                 line_1_color=data.get("line_1_color"),
@@ -527,9 +543,7 @@ async def _async_play_sound(call: ServiceCall) -> None:
     """
 
     async def work(coordinator: BusyBarCoordinator, data: dict[str, Any]) -> None:
-        sound = await notification.resolve_sound(
-            coordinator.client, data["sound"], application_name=APPLICATION_NAME
-        )
+        sound = await _resolve(coordinator, "sound", data["sound"])
         await coordinator.client.audio_play(
             path=sound.reference if sound.is_upload else None,
             stock_path=None if sound.is_upload else sound.reference,
@@ -586,6 +600,120 @@ async def _async_list_assets(call: ServiceCall) -> ServiceResponse:
     return answer
 
 
+async def _resolve(coordinator: BusyBarCoordinator, kind: str, name: str):
+    """
+    Find an icon or a sound by name, wherever on the bar it is.
+
+    A name this integration can use is one of the firmware's or one in
+    its own folder: the device resolves an upload inside the folder of
+    whichever application is drawing. An upload made by the BUSY app or
+    the Draw Tool is therefore not ours to draw - so it is copied across
+    first, byte for byte, and then it is.
+
+    Doing it here rather than asking the person to copy it themselves is
+    the difference between "that icon is on the bar" and "that icon is on
+    the bar, but not for you".
+    """
+    resolve = (
+        notification.resolve_icon if kind == "image" else notification.resolve_sound
+    )
+    try:
+        return await resolve(
+            coordinator.client, name, application_name=APPLICATION_NAME
+        )
+    except ValueError:
+        theirs = next(
+            (
+                asset
+                for asset in await assets.discover_assets(coordinator.client)
+                if asset.kind == kind and asset.name == name and asset.is_upload
+            ),
+            None,
+        )
+        if theirs is None:
+            raise
+        _LOGGER.info(
+            "copying %r from %s so Home Assistant can use it",
+            theirs.reference,
+            theirs.application,
+        )
+        await assets.copy_to_application(coordinator.client, theirs, APPLICATION_NAME)
+        return await resolve(
+            coordinator.client, name, application_name=APPLICATION_NAME
+        )
+
+
+async def _async_upload_asset(call: ServiceCall) -> ServiceResponse:
+    """
+    Put a picture or a sound of your own on the bar.
+
+    The device resolves an asset by name inside the folder of whichever
+    application asked for the drawing, so a file uploaded by the BUSY app
+    or the Draw Tool is one this integration cannot name. Uploading it
+    here puts it where Home Assistant can: its own folder, under the name
+    this answers with, which is then what the icon and sound fields take.
+
+    The file is converted on the way - a PNG is scaled and re-encoded for
+    the panel, a WAV for the speaker - because what the bar stores is not
+    what a phone or a laptop calls a picture.
+    """
+    source = pathlib.Path(call.data["file"])
+    if not call.hass.config.is_allowed_path(str(source)):
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="file_not_allowed",
+            translation_placeholders={"file": str(source)},
+        )
+
+    def read() -> bytes:
+        return source.read_bytes()
+
+    try:
+        payload = await call.hass.async_add_executor_job(read)
+    except OSError as err:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="file_unreadable",
+            translation_placeholders={"file": str(source), "error": str(err)},
+        ) from err
+
+    wanted = call.data.get("name") or source.name
+    try:
+        filename, converted = await call.hass.async_add_executor_job(
+            partial(converter.convert_for_storage, wanted, payload)
+        )
+    except BusyBarError as err:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="file_not_convertible",
+            translation_placeholders={"file": str(source), "error": str(err)},
+        ) from err
+
+    answer: dict[str, Any] = {}
+    for coordinator in _coordinators(call.hass, _targeted_devices(call)):
+        try:
+            await coordinator.client.assets_upload(
+                application_name=APPLICATION_NAME,
+                filename=filename,
+                data=converted,
+            )
+        except BusyBarError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="upload_failed",
+                translation_placeholders={
+                    "error": f"{_named(call.hass, coordinator)}: {err}"
+                },
+            ) from err
+        # The name without its extension is what the icon and sound
+        # fields take, which is the only part a caller needs back.
+        answer[_named(call.hass, coordinator)] = {
+            "name": pathlib.Path(filename).stem,
+            "file": filename,
+        }
+    return answer
+
+
 def async_register_services(hass: HomeAssistant) -> None:
     """
     Register every action this integration provides.
@@ -616,6 +744,16 @@ def async_register_services(hass: HomeAssistant) -> None:
         (SERVICE_CLEAR, _async_clear, _TARGET_SCHEMA),
     ):
         hass.services.async_register(DOMAIN, name, handler, schema=schema)
+
+    # Answers with the name the file ended up with, which is what the
+    # icon and sound fields then take.
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_UPLOAD_ASSET,
+        _async_upload_asset,
+        schema=_UPLOAD_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
 
     # Read-only, and the caller always wants the answer: this exists to
     # be run from the UI and read.

@@ -169,6 +169,27 @@ class FakeBar:
     THEMES = ["dnd", "meeting"]
     UPLOADS = {"home_assistant": ["logo.png"]}
 
+    async def storage_read(self, path: str) -> bytes:
+        """
+        A picture, as far as anything reading its header can tell.
+
+        The layout reads the size out of the file - a PNG's IHDR, the
+        firmware format's own header - so a fake that answers with
+        anything shorter is refused for the right reason and the wrong
+        test fails.
+        """
+        self._refuse_if_off()
+        if path.endswith(".png"):
+            return (
+                b"\x89PNG\r\n\x1a\n"
+                + (13).to_bytes(4, "big")
+                + b"IHDR"
+                + (8).to_bytes(4, "big")
+                + (8).to_bytes(4, "big")
+                + b"\x08\x02\x00\x00\x00"
+            )
+        return b"BUSY" + (8).to_bytes(2, "little") + (8).to_bytes(2, "little")
+
     async def storage_list(self, path: str) -> types.StorageList:
         self._refuse_if_off()
         if path in self.SHIPPED:

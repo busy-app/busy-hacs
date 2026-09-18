@@ -12,6 +12,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.const import ATTR_ENTITY_ID
+from homeassistant.exceptions import ServiceValidationError
 import pytest
 
 from custom_components.busy.const import DOMAIN
@@ -222,3 +223,108 @@ async def test_a_notification_with_no_icon_asks_for_none(
     _, kwargs = notified.call_args
     assert kwargs["icon"] is None
     assert kwargs["sound"] is None
+
+
+async def test_a_file_of_your_own_can_be_put_on_a_bar(
+    hass, prod_entry, bars, busy_network, quiet_snapshot, tmp_path
+) -> None:
+    """
+    The bar keeps each application's uploads apart and reaches only its
+    own, so a picture uploaded by the BUSY app cannot be named from here.
+    Putting it in this integration's folder is what makes it usable, and
+    the answer says under which name.
+    """
+    bars[PROD_HOST] = FakeBar()
+    prod_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+
+    picture = tmp_path / "deploy_done.png"
+    picture.write_bytes(b"not really a png")
+    hass.config.allowlist_external_dirs = {str(tmp_path)}
+
+    with patch(
+        "custom_components.busy.services_setup.converter.convert_for_storage",
+        return_value=("deploy_done.png", b"converted"),
+    ):
+        answer = await hass.services.async_call(
+            DOMAIN,
+            "upload_asset",
+            {"device_id": _device_id(hass, prod_entry), "file": str(picture)},
+            blocking=True,
+            return_response=True,
+        )
+
+    assert answer[prod_entry.title]["name"] == "deploy_done"
+
+
+async def test_a_file_home_assistant_may_not_read_is_refused(
+    hass, prod_entry, bars, busy_network, quiet_snapshot, tmp_path
+) -> None:
+    """
+    An integration reading any path it is handed is a way out of Home
+    Assistant's own sandbox, so the allowlist decides - and says so
+    rather than failing as a missing file.
+    """
+    bars[PROD_HOST] = FakeBar()
+    prod_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+
+    outside = tmp_path / "secret.png"
+    outside.write_bytes(b"x")
+    hass.config.allowlist_external_dirs = set()
+
+    with pytest.raises(ServiceValidationError, match="not allowed to read"):
+        await hass.services.async_call(
+            DOMAIN,
+            "upload_asset",
+            {"device_id": _device_id(hass, prod_entry), "file": str(outside)},
+            blocking=True,
+        )
+
+
+async def test_an_icon_somebody_else_uploaded_is_taken_over_and_used(
+    hass, prod_entry, bars, busy_network, quiet_snapshot
+) -> None:
+    """
+    The bar resolves an upload inside the folder of whichever application
+    is drawing, so one made through the BUSY app or the Draw Tool is not
+    Home Assistant's to draw. Asking a person to copy it themselves is
+    the difference between "that icon is on the bar" and "that icon is on
+    the bar, but not for you".
+    """
+    bar = FakeBar()
+    bar.UPLOADS = {"draw_tool": ["my_logo.png"]}
+    bars[PROD_HOST] = bar
+    prod_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+
+    copied: list[tuple[str, str]] = []
+
+    async def copy(client, asset, application_name):
+        copied.append((asset.application, application_name))
+        bar.UPLOADS.setdefault(application_name, []).append(asset.reference)
+        return asset
+
+    with (
+        patch("custom_components.busy.services_setup.assets.copy_to_application", copy),
+        patch(
+            "custom_components.busy.services_setup.notification.notify", AsyncMock()
+        ) as notified,
+    ):
+        await hass.services.async_call(
+            DOMAIN,
+            "notify",
+            {
+                "device_id": _device_id(hass, prod_entry),
+                "line_1": "Deployed",
+                "icon": "my_logo",
+            },
+            blocking=True,
+        )
+
+    assert copied == [("draw_tool", "home_assistant")]
+    _, kwargs = notified.call_args
+    assert kwargs["icon"].path == "my_logo.png"
