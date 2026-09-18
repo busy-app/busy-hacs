@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from functools import partial
+from typing import Any
 
 from busylib import types
 from busylib.exceptions import BusyBarError
 from busylib.features import timer
-
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant

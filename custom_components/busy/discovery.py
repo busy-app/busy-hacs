@@ -5,11 +5,9 @@ from __future__ import annotations
 import logging
 
 from busylib import BusyBarDevices
-from zeroconf.asyncio import AsyncZeroconf
-
 from homeassistant.components import zeroconf as ha_zeroconf
 from homeassistant.core import HomeAssistant
-
+from zeroconf.asyncio import AsyncZeroconf
 
 DISCOVERY_TIMEOUT = 10.0
 _LOGGER = logging.getLogger(__name__)

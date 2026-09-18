@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from busylib.exceptions import BusyBarError
-
 from homeassistant.components.image import ImageEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import PlatformNotReady

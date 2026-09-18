@@ -4,12 +4,6 @@ from functools import partial
 import logging
 from typing import Any
 
-import voluptuous as vol
-
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import CONF_DEVICE_ID, CONF_HOST, CONF_TOKEN
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-
 from busylib.devices import (
     BUSYBAR_INSTANCE_NAME_PREFIX,
     BUSYBAR_USB_SUBNET,
@@ -19,6 +13,10 @@ from busylib.devices import (
 )
 from busylib.exceptions import BusyBarError, BusyBarRequestError
 from busylib.transports import AiohttpTransport
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.const import CONF_DEVICE_ID, CONF_HOST, CONF_TOKEN
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+import voluptuous as vol
 
 from .const import DOMAIN
 from .discovery import async_discover_busy
@@ -289,6 +287,14 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         client = await self.hass.async_add_executor_job(
             partial(
                 self.device.to_async_client,
+                # The address Home Assistant can reach. A bar plugged
+                # into some other machine announces that machine's USB
+                # network too, and minting a token against it fails the
+                # way a bar with its HTTP API switched off does - which
+                # is a confusing thing to tell someone whose bar is on.
+                affinity=(
+                    "over_wifi" if self.device.get_address("over_wifi") else None
+                ),
                 token=password,
                 # Home Assistant's own session, so minting a token uses the
                 # same connection pool as everything after it.
@@ -300,7 +306,8 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.debug('step "mint_token": minting token')
             token_info = await client.access_token_mint(self.hass.config.location_name)
             _LOGGER.debug(
-                f'step "mint_token": acquired token with short_id="{token_info.short_id}"'
+                'step "mint_token": acquired token with short_id="%s"',
+                token_info.short_id,
             )
             token = token_info.token
         except BusyBarRequestError:
@@ -311,13 +318,13 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
             # useless - no key exists, and the person is left trying
             # passwords against a door that is not there.
             _LOGGER.debug(
-                "step \"mint_token\": %s answered discovery but not HTTP",
+                'step "mint_token": %s answered discovery but not HTTP',
                 self.device.device_id,
             )
             return self.async_abort(reason="http_api_disabled")
         except BusyBarError:
             _LOGGER.debug(
-                'step "mint_token": minting without password failed, requesting password from user'
+                'step "mint_token": minting without a password failed, asking for one'
             )
             return self.async_show_form(
                 step_id="mint_token",

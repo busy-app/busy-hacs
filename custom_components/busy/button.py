@@ -5,7 +5,6 @@ from __future__ import annotations
 from busylib import types
 from busylib.exceptions import BusyBarError
 from busylib.features import timer
-
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, PlatformNotReady

@@ -10,7 +10,6 @@ from urllib.parse import urlparse
 from busylib import types
 from busylib.exceptions import BusyBarError
 from busylib.features import timer_state
-
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -19,8 +18,8 @@ from homeassistant.components.sensor import (
 from homeassistant.const import (
     PERCENTAGE,
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
-    UnitOfElectricPotential,
     EntityCategory,
+    UnitOfElectricPotential,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import PlatformNotReady
