@@ -67,6 +67,9 @@
     },
     "invalid_timer_request": {
       "message": "The bar cannot do that: {error}"
+    },
+    "screen_is_taken": {
+      "message": "{bar} is running a session, and refuses every drawing while it does - a notification cannot be shown over one. End the session, or let it finish."
     }
   },
   "services": {
@@ -113,6 +116,10 @@
         "font_2": {
           "name": "Second line size",
           "description": "A size for the second line alone. A label over a detail - big over tiny - says which of the two matters, where one size for both says they are equal."
+        },
+        "interrupt": {
+          "name": "Show it over other drawings",
+          "description": "Puts this notification above whatever else is drawn on the bar by an app. It does not get past a running session: the firmware refuses every drawing while one is on."
         }
       }
     },

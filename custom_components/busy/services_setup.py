@@ -19,7 +19,11 @@ import logging
 from typing import Any
 
 from busylib import types
-from busylib.exceptions import BusyBarError, BusyBarFeatureUnavailableError
+from busylib.exceptions import (
+    BusyBarAPIError,
+    BusyBarError,
+    BusyBarFeatureUnavailableError,
+)
 from busylib.features import assets, notification, timer
 from homeassistant.core import (
     HomeAssistant,
@@ -92,6 +96,10 @@ _NOTIFY_SCHEMA = vol.Schema(
         vol.Optional("duration", default=DEFAULT_DURATION): vol.All(
             vol.Coerce(int), vol.Range(min=0, max=MAX_DURATION)
         ),
+        # Above other applications' drawings. Not above a session: while
+        # one runs the firmware refuses every drawing whatever its
+        # priority, which is why that case has a message of its own.
+        vol.Optional("interrupt", default=False): cv.boolean,
         vol.Optional("font", default=notification.DEFAULT_FONT): vol.In(
             notification.ONE_LINE_FONTS
         ),
@@ -280,9 +288,30 @@ async def _async_notify(call: ServiceCall) -> None:
                 line_2_color=data.get("line_2_color"),
                 background_color=data.get("background_color"),
                 duration=data["duration"],
-                priority=notification.PRIORITY_DEFAULT,
+                priority=(
+                    notification.PRIORITY_INTERRUPT
+                    if data.get("interrupt")
+                    else notification.PRIORITY_DEFAULT
+                ),
                 application_name=APPLICATION_NAME,
             )
+        except BusyBarAPIError as err:
+            if err.status_code != 409:
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="notify_failed",
+                    translation_placeholders={
+                        "error": f"{_named(call.hass, coordinator)}: {err}"
+                    },
+                ) from err
+            # The bar answers "low priority", which sends the reader
+            # looking for a priority to raise. There is none: a running
+            # session blocks every drawing, whatever it asks for.
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="screen_is_taken",
+                translation_placeholders={"bar": _named(call.hass, coordinator)},
+            ) from err
         except BusyBarFeatureUnavailableError as err:
             # Caught before BusyBarError, which it subclasses: the fix here
             # is updating the bar's firmware, not retrying, so reporting it
