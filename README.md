@@ -8,11 +8,25 @@ Discovery works :P
 
 Notifications, icons, themes and sounds come from the bar itself - it ships
 with a set of pictures, animations, sounds and themes, and nothing has to be
-uploaded to use them. They are mapped, with the names to pass and how to call
-them, in
+uploaded to use them. Every one of them, with pictures you can actually look
+at and sounds you can play, is in
 [busylib's stock assets guide](https://busy-app.github.io/busylib-py/guides/stock-assets/).
-The sound names the `busy.notify` action takes, and the theme names the
-session actions take, come from there; the icons it takes are listed below.
+
+Which of them a **particular** bar has is a different question - a release
+adds some, an owner uploads others - and that one the bar answers itself:
+
+```yaml
+actions:
+  - action: busy.list_assets
+    target:
+      device_id: <your bar>
+    response_variable: assets
+```
+
+Run it from **Developer tools → Actions** and it answers with every icon,
+animation, sound, font and theme that bar holds, the firmware's own and the
+uploaded ones apart. Those are the names the `icon`, `sound` and `theme`
+fields take.
 
 ## Icons for the notify action
 

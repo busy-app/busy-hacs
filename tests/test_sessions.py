@@ -130,3 +130,35 @@ def _device_id(hass, entry) -> str:
     registry = dr.async_get(hass)
     devices = dr.async_entries_for_config_entry(registry, entry.entry_id)
     return devices[0].id
+
+
+async def test_a_bar_answers_with_what_it_can_show_and_play(
+    hass, prod_entry, bars, busy_network, quiet_snapshot
+) -> None:
+    """
+    The icon, sound and theme fields take a name, and which names exist
+    is a fact about one bar. A dropdown cannot know it; the bar can, and
+    this is how a person reads the answer.
+    """
+    bars[PROD_HOST] = FakeBar()
+    prod_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+
+    answer = await hass.services.async_call(
+        DOMAIN,
+        "list_assets",
+        {"device_id": _device_id(hass, prod_entry)},
+        blocking=True,
+        return_response=True,
+    )
+
+    catalogue = answer[prod_entry.title]
+
+    assert list(answer) == [prod_entry.title]
+    assert "clock_5x5" in catalogue["images"]["shipped"]
+    assert "volume_change" in catalogue["sounds"]["shipped"]
+    assert catalogue["themes"]["shipped"] == ["dnd", "meeting"]
+    # Uploads are kept apart by the application that put them there: a
+    # name is only usable by the application whose folder it is in.
+    assert catalogue["images"]["uploaded"] == {"home_assistant": ["logo"]}

@@ -84,11 +84,11 @@
         },
         "icon": {
           "name": "Icon",
-          "description": "The icon drawn at the left edge, by name. Any image the bar has, including one uploaded to it by this integration - the layout reads the width from the file, and an icon too big for the panel is refused rather than drawn over the text."
+          "description": "The icon drawn at the left edge, by name. Any image the bar has, including one uploaded to it by this integration. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
         },
         "sound": {
           "name": "Sound",
-          "description": "A sound to play with the notification. Any the bar has, by name; leave it at none for silence."
+          "description": "A sound to play with the notification; leave it at none for silence. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
         },
         "duration": {
           "name": "Duration",
@@ -118,7 +118,7 @@
       "fields": {
         "theme": {
           "name": "Theme",
-          "description": "Show this session in a theme of your choosing. Nothing on the bar is changed: the card keeps its own theme, which the bar returns to when the session ends."
+          "description": "Show this session in a theme of your choosing. Nothing on the bar is changed: the card keeps its own theme, which the bar returns to when the session ends. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
         }
       }
     },
@@ -128,7 +128,7 @@
       "fields": {
         "theme": {
           "name": "Theme",
-          "description": "Show this session in a theme of your choosing. Nothing on the bar is changed: the card keeps its own theme, which the bar returns to when the session ends."
+          "description": "Show this session in a theme of your choosing. Nothing on the bar is changed: the card keeps its own theme, which the bar returns to when the session ends. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
         }
       }
     },
@@ -138,7 +138,7 @@
       "fields": {
         "theme": {
           "name": "Theme",
-          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used."
+          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
         }
       }
     },
@@ -152,7 +152,7 @@
         },
         "theme": {
           "name": "Theme",
-          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used."
+          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
         }
       }
     },
@@ -174,7 +174,7 @@
         },
         "theme": {
           "name": "Theme",
-          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used."
+          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
         }
       }
     },
@@ -188,7 +188,7 @@
       "fields": {
         "theme": {
           "name": "Theme",
-          "description": "A theme this bar has. The bar's own list is on its theme entities; a name it does not have is refused rather than stored."
+          "description": "A theme this bar has. The bar's own list is on its theme entities; a name it does not have is refused rather than stored. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
         },
         "mode": {
           "name": "Mode",
@@ -202,7 +202,7 @@
       "fields": {
         "sound": {
           "name": "Sound",
-          "description": "Which sound to play. Any the bar has: the three with short names, the timer's own, or one uploaded to it. A name this bar does not have is refused with the list of the ones it does."
+          "description": "Which sound to play. Any the bar has: the three with short names, the timer's own, or one uploaded to it. Run the “List what a bar can show and play” action to see what this bar has; the whole set, with pictures, is in the documentation."
         }
       }
     },
@@ -221,6 +221,11 @@
     "resume_session": {
       "name": "Resume the session",
       "description": "Continues a paused session."
+    },
+    "list_assets": {
+      "name": "List what a bar can show and play",
+      "description": "Answers with the icons, animations, sounds, fonts and themes this bar holds - the firmware's own and anything uploaded to it. Which names exist is a fact about one bar, so this asks it rather than offering a list that can only be wrong about somebody's.",
+      "fields": {}
     }
   },
   "entity": {

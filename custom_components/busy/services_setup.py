@@ -20,8 +20,13 @@ from typing import Any
 
 from busylib import types
 from busylib.exceptions import BusyBarError, BusyBarFeatureUnavailableError
-from busylib.features import notification, timer
-from homeassistant.core import HomeAssistant, ServiceCall
+from busylib.features import assets, notification, timer
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+)
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import (
     config_validation as cv,
@@ -44,6 +49,7 @@ from .const import (
     DOMAIN,
     MAX_DURATION,
     SERVICE_CLEAR,
+    SERVICE_LIST_ASSETS,
     SERVICE_NEXT_PHASE,
     SERVICE_NOTIFY,
     SERVICE_PAUSE_SESSION,
@@ -515,6 +521,38 @@ async def _async_clear(call: ServiceCall) -> None:
     await _for_each_bar(call, work)
 
 
+async def _async_list_assets(call: ServiceCall) -> ServiceResponse:
+    """
+    Answer with what this bar can draw and play.
+
+    The icon, sound and theme fields take a name, and which names exist
+    is a fact about one bar: the firmware ships a set, a release adds to
+    it, and anything uploaded is there too. A list written into a
+    dropdown can only be wrong about somebody's bar, so this asks the
+    bar - and answers where a person can read it, in the action's own
+    response rather than in a log or a diagnostics download.
+    """
+    answer: dict[str, Any] = {}
+    for coordinator in _coordinators(call.hass, _targeted_devices(call)):
+        try:
+            found = await assets.discover_assets(coordinator.client)
+        except BusyBarError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="device_unreachable",
+            ) from err
+
+        kinds: dict[str, Any] = {}
+        for asset in found:
+            names = kinds.setdefault(f"{asset.kind}s", {"shipped": [], "uploaded": {}})
+            if asset.application is None:
+                names["shipped"].append(asset.name)
+            else:
+                names["uploaded"].setdefault(asset.application, []).append(asset.name)
+        answer[_named(call.hass, coordinator)] = kinds
+    return answer
+
+
 def async_register_services(hass: HomeAssistant) -> None:
     """
     Register every action this integration provides.
@@ -545,3 +583,13 @@ def async_register_services(hass: HomeAssistant) -> None:
         (SERVICE_CLEAR, _async_clear, _TARGET_SCHEMA),
     ):
         hass.services.async_register(DOMAIN, name, handler, schema=schema)
+
+    # Read-only, and the caller always wants the answer: this exists to
+    # be run from the UI and read.
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_LIST_ASSETS,
+        _async_list_assets,
+        schema=_TARGET_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )

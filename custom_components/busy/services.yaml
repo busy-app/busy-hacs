@@ -393,3 +393,8 @@ clear:
   target:
     entity:
       integration: busy
+
+list_assets:
+  target:
+    entity:
+      integration: busy
