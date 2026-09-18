@@ -9,6 +9,7 @@ card outside both positions so the BUSY app can show where it came from.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.const import ATTR_ENTITY_ID
@@ -306,7 +307,7 @@ async def test_an_icon_somebody_else_uploaded_is_taken_over_and_used(
     async def copy(client, asset, application_name):
         copied.append((asset.application, application_name))
         bar.UPLOADS.setdefault(application_name, []).append(asset.reference)
-        return asset
+        return replace(asset, application=application_name)
 
     with (
         patch("custom_components.busy.services_setup.assets.copy_to_application", copy),
@@ -353,6 +354,74 @@ async def test_a_name_no_bar_has_says_what_this_one_has(
                 "device_id": _device_id(hass, prod_entry),
                 "line_1": "Deployed",
                 "icon": "not_on_any_bar",
+            },
+            blocking=True,
+        )
+
+
+async def test_a_folder_says_which_upload_of_a_name_is_meant(
+    hass, prod_entry, bars, busy_network, quiet_snapshot
+) -> None:
+    """
+    Two applications can each hold a file of one name, and a bare name
+    then means whichever the bar answers with first. Writing the folder
+    settles it, and is the form the catalogue lists an upload under.
+    """
+    bar = FakeBar()
+    bar.UPLOADS = {"draw_tool": ["logo.png"], "pole_chudes": ["logo.png"]}
+    bars[PROD_HOST] = bar
+    prod_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+
+    taken: list[str] = []
+
+    async def copy(client, asset, application_name):
+        taken.append(asset.application)
+        bar.UPLOADS.setdefault(application_name, []).append(asset.reference)
+        return replace(asset, application=application_name)
+
+    with (
+        patch("custom_components.busy.services_setup.assets.copy_to_application", copy),
+        patch("custom_components.busy.services_setup.notification.notify", AsyncMock()),
+    ):
+        await hass.services.async_call(
+            DOMAIN,
+            "notify",
+            {
+                "device_id": _device_id(hass, prod_entry),
+                "line_1": "Deployed",
+                "icon": "pole_chudes/logo",
+            },
+            blocking=True,
+        )
+
+    assert taken == ["pole_chudes"]
+
+
+async def test_taking_a_file_never_writes_over_one_of_your_own(
+    hass, prod_entry, bars, busy_network, quiet_snapshot
+) -> None:
+    """
+    Copying happens on the way to drawing something, which is no moment
+    to replace a file somebody put there deliberately. The name they
+    meant may well be their own, so the error names both.
+    """
+    bar = FakeBar()
+    bar.UPLOADS = {"draw_tool": ["logo.png"], "home_assistant": ["logo.png"]}
+    bars[PROD_HOST] = bar
+    prod_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+
+    with pytest.raises(ServiceValidationError, match="write over a file of your own"):
+        await hass.services.async_call(
+            DOMAIN,
+            "notify",
+            {
+                "device_id": _device_id(hass, prod_entry),
+                "line_1": "Deployed",
+                "icon": "draw_tool/logo",
             },
             blocking=True,
         )

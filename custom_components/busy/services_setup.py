@@ -15,6 +15,7 @@ draw, and only busylib knows the device's version - so the layout lives in
 
 from __future__ import annotations
 
+import difflib
 from functools import partial
 import logging
 import pathlib
@@ -633,11 +634,17 @@ async def _resolve(coordinator: BusyBarCoordinator, kind: str, name: str):
             coordinator.client, name, application_name=APPLICATION_NAME
         )
     except ValueError:
+        catalogue = await assets.discover_assets(coordinator.client)
         theirs = next(
             (
                 asset
-                for asset in await assets.discover_assets(coordinator.client)
-                if asset.kind == kind and asset.name == name and asset.is_upload
+                for asset in catalogue
+                if asset.kind == kind
+                and asset.is_upload
+                # A bare name, or the folder and the name: "draw_tool/logo"
+                # is the one form that cannot mean two files, and the form
+                # the catalogue shows an upload under.
+                and name in (asset.name, notification.upload_for(asset))
             ),
             None,
         )
@@ -645,25 +652,52 @@ async def _resolve(coordinator: BusyBarCoordinator, kind: str, name: str):
             # A name that is on no bar is a mistake in the automation,
             # not a device failure: say what this bar does have, the way
             # a wrong theme already does.
+            # A bar holds a hundred icons, and printing all of them is a
+            # wall of text in a dialog box. The few that look like what
+            # was typed are what a typo needs; the rest are one action
+            # away, and that action can be read at leisure.
+            available = sorted(
+                notification.upload_for(asset)
+                if asset.is_upload and asset.application != APPLICATION_NAME
+                else asset.name
+                for asset in catalogue
+                if asset.kind == kind
+            )
+            closest = difflib.get_close_matches(name, available, n=5, cutoff=0.5)
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
-                translation_key="unknown_asset",
+                translation_key=(
+                    "unknown_asset_closest" if closest else "unknown_asset"
+                ),
                 translation_placeholders={
                     "kind": "icon" if kind == "image" else "sound",
                     "name": name,
-                    "available": ", ".join(
-                        sorted(
-                            asset.name
-                            for asset in await assets.discover_assets(
-                                coordinator.client
-                            )
-                            if asset.kind == kind
-                            and (
-                                not asset.is_upload
-                                or asset.application == APPLICATION_NAME
-                            )
-                        )
-                    ),
+                    "closest": ", ".join(closest),
+                    "count": str(len(available)),
+                },
+            ) from None
+        ours = next(
+            (
+                asset
+                for asset in catalogue
+                if asset.kind == kind
+                and asset.is_upload
+                and asset.application == APPLICATION_NAME
+                and asset.reference == theirs.reference
+            ),
+            None,
+        )
+        if ours is not None:
+            # Copying would write over a file of theirs under the same
+            # name, which is not something to do quietly on the way to
+            # drawing something else.
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="upload_would_be_replaced",
+                translation_placeholders={
+                    "name": theirs.reference,
+                    "application": theirs.application,
+                    "own": notification.upload_for(ours),
                 },
             ) from None
         _LOGGER.info(
@@ -671,9 +705,15 @@ async def _resolve(coordinator: BusyBarCoordinator, kind: str, name: str):
             theirs.reference,
             theirs.application,
         )
-        await assets.copy_to_application(coordinator.client, theirs, APPLICATION_NAME)
+        copied = await assets.copy_to_application(
+            coordinator.client, theirs, APPLICATION_NAME
+        )
+        # By its new folder, not the name that was asked for: the file is
+        # ours now, and the folder in the old name is somebody else's.
         return await resolve(
-            coordinator.client, name, application_name=APPLICATION_NAME
+            coordinator.client,
+            notification.upload_for(copied),
+            application_name=APPLICATION_NAME,
         )
 
 

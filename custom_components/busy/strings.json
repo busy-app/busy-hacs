@@ -87,7 +87,13 @@
       "message": "{bar} is showing something of its own and refused an ordinary notification. Turn on “Show it over other drawings” to put this one above it."
     },
     "unknown_asset": {
-      "message": "This bar has no {kind} called {name}. It has: {available}."
+      "message": "This bar has no {kind} called {name}. It has {count} of them - run the “List what a bar can show and play” action to see which."
+    },
+    "upload_would_be_replaced": {
+      "message": "Taking {name} from {application} would write over a file of your own under the same name. Name yours as {own}, or upload theirs under a different name."
+    },
+    "unknown_asset_closest": {
+      "message": "This bar has no {kind} called {name}. The closest it has: {closest}. Run the “List what a bar can show and play” action for all {count}."
     }
   },
   "services": {
@@ -105,11 +111,11 @@
         },
         "icon": {
           "name": "Icon",
-          "description": "The icon drawn at the left edge, by name. [See every icon](https://busy-app.github.io/busylib-py/guides/stock-assets/#icons) the firmware ships, or run the “List what a bar can show and play” action for this bar's own - including anything uploaded to it."
+          "description": "The icon drawn at the left edge, by name. [See every icon](https://busy-app.github.io/busylib-py/guides/stock-assets/#icons) the firmware ships, or run the “List what a bar can show and play” action for this bar's own - including anything uploaded to it. A bare name is read as your own upload first, then as a built-in; write `draw_tool/logo` to mean a file another app uploaded, which is copied into Home Assistant's folder the first time you name it."
         },
         "sound": {
           "name": "Sound",
-          "description": "A sound to play with the notification; leave it empty for silence. [Listen to them all](https://busy-app.github.io/busylib-py/guides/stock-assets/#sounds), or run the “List what a bar can show and play” action for this bar's own."
+          "description": "A sound to play with the notification; leave it empty for silence. [Listen to them all](https://busy-app.github.io/busylib-py/guides/stock-assets/#sounds), or run the “List what a bar can show and play” action for this bar's own. Names work as for the icon: your own upload wins a bare name, and `app_name/sound` says which folder you mean."
         },
         "duration": {
           "name": "Duration",
