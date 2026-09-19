@@ -31,7 +31,7 @@ from .services_setup import async_register_services
 # the bar is doing, then what to do about it, and the remote control and
 # the settings last because a room card is not where those belong.
 _PLATFORMS: list[Platform] = [
-    Platform.IMAGE,
+    Platform.CAMERA,
     Platform.SENSOR,
     Platform.SWITCH,
     Platform.BUTTON,

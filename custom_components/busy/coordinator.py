@@ -46,7 +46,8 @@ INSTALL_REBOOT_GRACE = timedelta(minutes=5)
 
 # The stream is dominated by screen frames - roughly thirty per timer change -
 # so most entities are only told about updates that carried something they
-# show. Frames go to the screen entity instead, on their own throttle.
+# show. A frame carries nothing any of them show: it is folded into the
+# snapshot for the camera to pick up, and announced to nobody.
 _INTERESTING = (
     "timer",
     "power",
@@ -56,11 +57,6 @@ _INTERESTING = (
     "input",
     "ble",
 )
-
-# The bar sends about ten frames a second. Refreshing an entity that often
-# would flood the state machine and the recorder for a picture nobody can
-# read that fast, so the screen is announced at most this often.
-_FRAME_INTERVAL = 1.0
 
 # How long to wait before reconnecting a dropped stream. Long enough not to
 # hammer a rebooting bar, short enough that a session change is not missed.
@@ -181,8 +177,6 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
         self._installing_until: datetime | None = None
         self.quick = QuickSession()
         self._stream: asyncio.Task[None] | None = None
-        self._frame_listeners: list[Callable[[], None]] = []
-        self._frame_announced = 0.0
         self._input_listeners: list[Callable[[InputEvent], None]] = []
 
     async def _async_update_data(self) -> BusyBarData:
@@ -294,21 +288,6 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
                 )
             await asyncio.sleep(_RECONNECT_DELAY)
 
-    def add_frame_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
-        """
-        Be told when a new screen frame has arrived, at most once a second.
-
-        Returns a function that unsubscribes, for an entity to call when it
-        is removed.
-        """
-        self._frame_listeners.append(callback)
-
-        def remove() -> None:
-            if callback in self._frame_listeners:
-                self._frame_listeners.remove(callback)
-
-        return remove
-
     def add_input_listener(
         self, callback: Callable[[InputEvent], None]
     ) -> Callable[[], None]:
@@ -338,17 +317,6 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
             for callback in list(self._input_listeners):
                 callback(event)
 
-    def _announce_frame(self) -> None:
-        """
-        Tell the screen entity, unless it was told recently.
-        """
-        now = self.hass.loop.time()
-        if now - self._frame_announced < _FRAME_INTERVAL:
-            return
-        self._frame_announced = now
-        for callback in list(self._frame_listeners):
-            callback()
-
     def _apply(self, message: dict[str, object]) -> None:
         """
         Fold one stream message in, and notify entities if it mattered.
@@ -369,15 +337,16 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
             self._announce_input(events)
 
         if any(isinstance(u, dict) and "frame" in u for u in updates):
-            # Fold the frame in and tell only the screen. Assigning `data`
-            # rather than calling async_set_updated_data is deliberate: the
-            # latter wakes every entity, which at ten frames a second is
-            # exactly what this avoids.
+            # Fold the frame in and tell nobody. Assigning `data` rather
+            # than calling async_set_updated_data is deliberate: the latter
+            # wakes every entity, which at ten frames a second is exactly
+            # what this avoids. The camera reads the newest frame when
+            # somebody asks it for a picture, so nothing here has to be
+            # announced at all.
             current = replace(
                 current, snapshot=apply_state_stream_update(current.snapshot, message)
             )
             self.data = current
-            self._announce_frame()
 
         if not any(
             isinstance(update, dict) and any(k in update for k in _INTERESTING)

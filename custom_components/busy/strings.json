@@ -448,7 +448,7 @@
         "name": "Session next phase"
       }
     },
-    "image": {
+    "camera": {
       "screen": {
         "name": "Screen"
       }

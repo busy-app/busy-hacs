@@ -173,3 +173,32 @@ async def test_one_bar_missing_does_not_take_the_other_down(
 
     assert prod_entry.state is ConfigEntryState.LOADED
     assert dev_entry.state is ConfigEntryState.SETUP_RETRY
+
+
+async def test_the_screen_does_not_write_a_row_for_every_frame(
+    hass, prod_entry, bars, busy_network
+) -> None:
+    """
+    The screen was an image entity, whose state is when its picture last
+    changed - so a bar counting down wrote a state change a second, all
+    day, watched or not. On a real installation that came to 96% of the
+    recorder's database. A camera's state does not move: frames are
+    handed out when something asks for one.
+    """
+    bars[PROD_HOST] = FakeBar()
+    prod_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+
+    screen = next(
+        state for state in hass.states.async_all() if state.domain == "camera"
+    )
+    before = hass.states.get(screen.entity_id).last_updated
+
+    coordinator = prod_entry.runtime_data
+    for _ in range(50):
+        coordinator._apply({"updates": [{"frame": {"display": "front"}}]})
+    await hass.async_block_till_done()
+
+    assert hass.states.get(screen.entity_id).last_updated == before
+    assert not [s for s in hass.states.async_all() if s.domain == "image"]
