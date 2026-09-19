@@ -67,6 +67,33 @@
     },
     "invalid_timer_request": {
       "message": "The bar cannot do that: {error}"
+    },
+    "file_not_allowed": {
+      "message": "Home Assistant is not allowed to read {file}. Put the file under its `www` folder or a media folder, or add the folder to `allowlist_external_dirs`."
+    },
+    "file_unreadable": {
+      "message": "Cannot read {file}: {error}"
+    },
+    "file_not_convertible": {
+      "message": "{file} cannot be converted for the bar: {error}"
+    },
+    "upload_failed": {
+      "message": "The bar did not take the file: {error}"
+    },
+    "session_owns_the_screen": {
+      "message": "{bar} is running a session, and a session refuses every drawing while it lasts - there is no priority that gets past it. End the session, or let it finish."
+    },
+    "screen_is_busy": {
+      "message": "{bar} is showing something of its own and refused an ordinary notification. Turn on “Show it over other drawings” to put this one above it."
+    },
+    "unknown_asset": {
+      "message": "This bar has no {kind} called {name}. It has {count} of them - run the “List what a bar can show and play” action to see which."
+    },
+    "upload_would_be_replaced": {
+      "message": "Taking {name} from {application} would write over a file of your own under the same name. Name yours as {own}, or upload theirs under a different name."
+    },
+    "unknown_asset_closest": {
+      "message": "This bar has no {kind} called {name}. The closest it has: {closest}. Run the “List what a bar can show and play” action for all {count}."
     }
   },
   "services": {
@@ -84,19 +111,19 @@
         },
         "icon": {
           "name": "Icon",
-          "description": "The icon drawn at the left edge, by name. Any image the bar has, including one uploaded to it by this integration - the layout reads the width from the file, and an icon too big for the panel is refused rather than drawn over the text."
+          "description": "The icon drawn at the left edge, by name. To see what this bar has, run the “List what a bar can show and play” action for this bar's own set. A bare name is read as your own upload first and then as one the firmware ships; write `draw_tool/logo` - or `draw_tool/logo.png` - to mean a file another app uploaded, which is copied into Home Assistant's folder the first time you name it."
         },
         "sound": {
           "name": "Sound",
-          "description": "A sound to play with the notification. Any the bar has, by name; leave it at none for silence."
+          "description": "A sound to play with the notification; leave it empty for silence. To hear what this bar has, run the “List what a bar can show and play” action for this bar's own set. Names work as for the icon: your own upload wins a bare name, and `app_name/sound` says which folder you mean."
         },
         "duration": {
           "name": "Duration",
           "description": "How long the notification stays on screen."
         },
-        "font": {
-          "name": "Font",
-          "description": "Text font. The two largest only fit a single line."
+        "line_1_font": {
+          "name": "Line 1 size",
+          "description": "How big the first line is - and the second too, unless that one is given a size of its own. The two tallest sizes are for a single line: two lines do not fit them."
         },
         "line_1_color": {
           "name": "Line 1 colour",
@@ -109,6 +136,14 @@
         "background_color": {
           "name": "Background colour",
           "description": "Fills the panel behind the text. Needs API 24.3.0."
+        },
+        "line_2_font": {
+          "name": "Line 2 size",
+          "description": "A size for the second line alone. A label over a detail - big over tiny - says which of the two matters, where one size for both says they are equal."
+        },
+        "interrupt": {
+          "name": "Show it over other drawings",
+          "description": "Puts this notification above whatever else is drawn on the bar by an app. It does not get past a running session: the firmware refuses every drawing while one is on."
         }
       }
     },
@@ -118,7 +153,7 @@
       "fields": {
         "theme": {
           "name": "Theme",
-          "description": "Show this session in a theme of your choosing. Nothing on the bar is changed: the card keeps its own theme, which the bar returns to when the session ends."
+          "description": "Show this session in a theme of your choosing. Nothing on the bar is changed: the card keeps its own theme, which the bar returns to when the session ends. To see the themes this bar has, run the “List what a bar can show and play” action for this bar's own set."
         }
       }
     },
@@ -128,7 +163,7 @@
       "fields": {
         "theme": {
           "name": "Theme",
-          "description": "Show this session in a theme of your choosing. Nothing on the bar is changed: the card keeps its own theme, which the bar returns to when the session ends."
+          "description": "Show this session in a theme of your choosing. Nothing on the bar is changed: the card keeps its own theme, which the bar returns to when the session ends. To see the themes this bar has, run the “List what a bar can show and play” action for this bar's own set."
         }
       }
     },
@@ -138,7 +173,7 @@
       "fields": {
         "theme": {
           "name": "Theme",
-          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used."
+          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used. To see the themes this bar has, run the “List what a bar can show and play” action for this bar's own set."
         }
       }
     },
@@ -152,7 +187,7 @@
         },
         "theme": {
           "name": "Theme",
-          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used."
+          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used. To see the themes this bar has, run the “List what a bar can show and play” action for this bar's own set."
         }
       }
     },
@@ -174,7 +209,7 @@
         },
         "theme": {
           "name": "Theme",
-          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used."
+          "description": "How this session looks on the bar. Left out, the theme configured for this kind of quick session is used. To see the themes this bar has, run the “List what a bar can show and play” action for this bar's own set."
         }
       }
     },
@@ -188,7 +223,7 @@
       "fields": {
         "theme": {
           "name": "Theme",
-          "description": "A theme this bar has. The bar's own list is on its theme entities; a name it does not have is refused rather than stored."
+          "description": "A theme this bar has. The bar's own list is on its theme entities; a name it does not have is refused rather than stored. To see them, run the “List what a bar can show and play” action for this bar's own set."
         },
         "mode": {
           "name": "Mode",
@@ -202,7 +237,7 @@
       "fields": {
         "sound": {
           "name": "Sound",
-          "description": "Which sound to play. Any the bar has: the three with short names, the timer's own, or one uploaded to it. A name this bar does not have is refused with the list of the ones it does."
+          "description": "Which sound to play - any the bar has, the timer's own included. To see them, run the “List what a bar can show and play” action for this bar's own set."
         }
       }
     },
@@ -221,6 +256,25 @@
     "resume_session": {
       "name": "Resume the session",
       "description": "Continues a paused session."
+    },
+    "list_assets": {
+      "name": "List what a bar can show and play",
+      "description": "Answers with the icons, animations, sounds, fonts and themes this bar holds - the firmware's own and anything uploaded to it, which no fixed list can know. Every name comes back written the way a field takes it, so the answer can be read straight into an automation. The whole set is pictured in the documentation, linked from this integration's page.",
+      "fields": {}
+    },
+    "upload_asset": {
+      "name": "Put a picture or sound of your own on a bar",
+      "description": "Uploads a file from this Home Assistant to the bar, converted for it on the way, and answers with the name to use. That name is then what the icon and sound fields take. A file uploaded by the BUSY app or the Draw Tool cannot be used from here: the bar keeps each application's uploads apart, and only reaches its own.",
+      "fields": {
+        "file": {
+          "name": "File",
+          "description": "Path to the file on the machine Home Assistant runs on. It has to be somewhere Home Assistant is allowed to read - `/config/www` and the media folders are, by default. A picture is scaled to the panel and a sound re-encoded for the speaker."
+        },
+        "name": {
+          "name": "Name on the bar",
+          "description": "What to call it there. Defaults to the file's own name; an icon wider than the panel is refused when it is used, so keep pictures small."
+        }
+      }
     }
   },
   "entity": {

@@ -15,13 +15,25 @@ draw, and only busylib knows the device's version - so the layout lives in
 
 from __future__ import annotations
 
+import difflib
+from functools import partial
 import logging
+import pathlib
 from typing import Any
 
-from busylib import types
-from busylib.exceptions import BusyBarError, BusyBarFeatureUnavailableError
-from busylib.features import notification, timer
-from homeassistant.core import HomeAssistant, ServiceCall
+from busylib import converter, types
+from busylib.exceptions import (
+    BusyBarAPIError,
+    BusyBarError,
+    BusyBarFeatureUnavailableError,
+)
+from busylib.features import assets, notification, timer
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+)
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import (
     config_validation as cv,
@@ -44,6 +56,7 @@ from .const import (
     DOMAIN,
     MAX_DURATION,
     SERVICE_CLEAR,
+    SERVICE_LIST_ASSETS,
     SERVICE_NEXT_PHASE,
     SERVICE_NOTIFY,
     SERVICE_PAUSE_SESSION,
@@ -56,6 +69,7 @@ from .const import (
     SERVICE_START_QUICK_INTERVAL,
     SERVICE_START_QUICK_SIMPLE,
     SERVICE_STOP_SESSION,
+    SERVICE_UPLOAD_ASSET,
 )
 from .coordinator import QUICK_CARD_ID, BusyBarCoordinator
 
@@ -86,9 +100,16 @@ _NOTIFY_SCHEMA = vol.Schema(
         vol.Optional("duration", default=DEFAULT_DURATION): vol.All(
             vol.Coerce(int), vol.Range(min=0, max=MAX_DURATION)
         ),
-        vol.Optional("font", default=notification.DEFAULT_FONT): vol.In(
+        # Above other applications' drawings. Not above a session: while
+        # one runs the firmware refuses every drawing whatever its
+        # priority, which is why that case has a message of its own.
+        vol.Optional("interrupt", default=False): cv.boolean,
+        vol.Optional("line_1_font", default=notification.DEFAULT_FONT): vol.In(
             notification.ONE_LINE_FONTS
         ),
+        # A size for the second line alone. Two lines fit only the
+        # shorter fonts, and busylib refuses either line over that.
+        vol.Optional("line_2_font"): vol.In(notification.TWO_LINE_FONTS),
         vol.Optional("line_1_color"): _COLOUR,
         vol.Optional("line_2_color"): _COLOUR,
         vol.Optional("background_color"): _COLOUR,
@@ -152,6 +173,13 @@ _SET_THEME_SCHEMA = _TARGET_SCHEMA.extend(
 )
 
 _PLAY_SOUND_SCHEMA = _TARGET_SCHEMA.extend({vol.Required("sound"): cv.string})
+
+_UPLOAD_SCHEMA = _TARGET_SCHEMA.extend(
+    {
+        vol.Required("file"): cv.string,
+        vol.Optional("name"): cv.string,
+    }
+)
 
 
 def _targeted_devices(call: ServiceCall) -> list[str]:
@@ -259,20 +287,59 @@ async def _async_notify(call: ServiceCall) -> None:
     for coordinator in _coordinators(call.hass, _targeted_devices(call)):
         client = coordinator.client
         try:
+            icon = _optional(data.get("icon"))
+            sound = _optional(data.get("sound"))
             await notification.notify(
                 client,
                 data["line_1"],
                 line_2=data.get("line_2"),
-                icon=_optional(data.get("icon")),
-                sound=_optional(data.get("sound")),
-                font=data["font"],
+                icon=await _resolve(coordinator, "image", icon) if icon else None,
+                sound=(
+                    (await _resolve(coordinator, "sound", sound)).name
+                    if sound
+                    else None
+                ),
+                line_1_font=data["line_1_font"],
+                line_2_font=data.get("line_2_font"),
                 line_1_color=data.get("line_1_color"),
                 line_2_color=data.get("line_2_color"),
                 background_color=data.get("background_color"),
                 duration=data["duration"],
-                priority=notification.PRIORITY_DEFAULT,
+                priority=(
+                    notification.PRIORITY_INTERRUPT
+                    if data.get("interrupt")
+                    else notification.PRIORITY_DEFAULT
+                ),
                 application_name=APPLICATION_NAME,
             )
+        except BusyBarAPIError as err:
+            if err.status_code != 409:
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="notify_failed",
+                    translation_placeholders={
+                        "error": f"{_named(call.hass, coordinator)}: {err}"
+                    },
+                ) from err
+            # "Low priority" is true and useless: what a person needs to
+            # know is which of the two cases this is. A running session
+            # refuses every drawing, whatever priority it asks for - the
+            # firmware sets a loader priority above the API's maximum.
+            # The bar's own screens sit lower, and an interrupting
+            # notification gets past them.
+            live = coordinator.data
+            running = (
+                live is not None
+                and live.snapshot.timer is not None
+                and timer.timer_state(live.snapshot.timer).is_running
+            )
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key=(
+                    "session_owns_the_screen" if running else "screen_is_busy"
+                ),
+                translation_placeholders={"bar": _named(call.hass, coordinator)},
+            ) from err
         except BusyBarFeatureUnavailableError as err:
             # Caught before BusyBarError, which it subclasses: the fix here
             # is updating the bar's firmware, not retrying, so reporting it
@@ -488,9 +555,7 @@ async def _async_play_sound(call: ServiceCall) -> None:
     """
 
     async def work(coordinator: BusyBarCoordinator, data: dict[str, Any]) -> None:
-        sound = await notification.resolve_sound(
-            coordinator.client, data["sound"], application_name=APPLICATION_NAME
-        )
+        sound = await _resolve(coordinator, "sound", data["sound"])
         await coordinator.client.audio_play(
             path=sound.reference if sound.is_upload else None,
             stock_path=None if sound.is_upload else sound.reference,
@@ -513,6 +578,236 @@ async def _async_clear(call: ServiceCall) -> None:
         await coordinator.client.display_clear(application_name=APPLICATION_NAME)
 
     await _for_each_bar(call, work)
+
+
+async def _async_list_assets(call: ServiceCall) -> ServiceResponse:
+    """
+    Answer with what this bar can draw and play.
+
+    The icon, sound and theme fields take a name, and which names exist
+    is a fact about one bar: the firmware ships a set, a release adds to
+    it, and anything uploaded is there too. A list written into a
+    dropdown can only be wrong about somebody's bar, so this asks the
+    bar - and answers where a person can read it, in the action's own
+    response rather than in a log or a diagnostics download.
+
+    Three lists per kind, all in the form a field takes: what the
+    firmware ships, what this integration uploaded, and what other
+    applications did - the last named by folder, since that is both the
+    only way to ask for one and the warning that it is somebody else's.
+    """
+    answer: dict[str, Any] = {}
+    for coordinator in _coordinators(call.hass, _targeted_devices(call)):
+        try:
+            found = await assets.discover_assets(coordinator.client)
+        except BusyBarError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="device_unreachable",
+            ) from err
+
+        # Every name here is written the way it is typed into a field,
+        # so a list can be read straight into an automation. Only an
+        # upload carries a folder: the firmware's own files all sit in
+        # one place, and qualifying them would invent a structure the
+        # bar does not have and a name it would not resolve.
+        kinds: dict[str, Any] = {}
+        for asset in found:
+            names = kinds.setdefault(
+                f"{asset.kind}s", {"shipped": [], "yours": [], "other_apps": []}
+            )
+            if not asset.is_upload:
+                names["shipped"].append(asset.name)
+            elif asset.application == APPLICATION_NAME:
+                # Yours wins its bare name, so that is what to type.
+                names["yours"].append(asset.name)
+            else:
+                names["other_apps"].append(notification.upload_for(asset))
+        answer[_named(call.hass, coordinator)] = kinds
+    return answer
+
+
+async def _resolve(coordinator: BusyBarCoordinator, kind: str, name: str):
+    """
+    Find an icon or a sound by name, wherever on the bar it is.
+
+    A name this integration can use is one of the firmware's or one in
+    its own folder: the device resolves an upload inside the folder of
+    whichever application is drawing. An upload made by the BUSY app or
+    the Draw Tool is therefore not ours to draw - so it is copied across
+    first, byte for byte, and then it is.
+
+    Doing it here rather than asking the person to copy it themselves is
+    the difference between "that icon is on the bar" and "that icon is on
+    the bar, but not for you".
+    """
+    resolve = (
+        notification.resolve_icon if kind == "image" else notification.resolve_sound
+    )
+    try:
+        return await resolve(
+            coordinator.client, name, application_name=APPLICATION_NAME
+        )
+    except ValueError:
+        catalogue = await assets.discover_assets(coordinator.client)
+        theirs = next(
+            (
+                asset
+                for asset in catalogue
+                if asset.kind == kind
+                and asset.is_upload
+                # A bare name, or the folder and the name: "draw_tool/logo"
+                # is the one form that cannot mean two files, and the form
+                # the catalogue shows an upload under. The file name is
+                # taken as readily as the name without its extension -
+                # it is what a person sees on their own disk.
+                and name
+                in (
+                    asset.name,
+                    notification.upload_for(asset),
+                    f"{asset.application}/{asset.reference}",
+                )
+            ),
+            None,
+        )
+        if theirs is None:
+            # A name that is on no bar is a mistake in the automation,
+            # not a device failure: say what this bar does have, the way
+            # a wrong theme already does.
+            # A bar holds a hundred icons, and printing all of them is a
+            # wall of text in a dialog box. The few that look like what
+            # was typed are what a typo needs; the rest are one action
+            # away, and that action can be read at leisure.
+            available = sorted(
+                notification.upload_for(asset)
+                if asset.is_upload and asset.application != APPLICATION_NAME
+                else asset.name
+                for asset in catalogue
+                if asset.kind == kind
+            )
+            closest = difflib.get_close_matches(name, available, n=5, cutoff=0.5)
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key=(
+                    "unknown_asset_closest" if closest else "unknown_asset"
+                ),
+                translation_placeholders={
+                    "kind": "icon" if kind == "image" else "sound",
+                    "name": name,
+                    "closest": ", ".join(closest),
+                    "count": str(len(available)),
+                },
+            ) from None
+        ours = next(
+            (
+                asset
+                for asset in catalogue
+                if asset.kind == kind
+                and asset.is_upload
+                and asset.application == APPLICATION_NAME
+                and asset.reference == theirs.reference
+            ),
+            None,
+        )
+        if ours is not None:
+            # Copying would write over a file of theirs under the same
+            # name, which is not something to do quietly on the way to
+            # drawing something else.
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="upload_would_be_replaced",
+                translation_placeholders={
+                    "name": theirs.reference,
+                    "application": theirs.application,
+                    "own": notification.upload_for(ours),
+                },
+            ) from None
+        _LOGGER.info(
+            "copying %r from %s so Home Assistant can use it",
+            theirs.reference,
+            theirs.application,
+        )
+        copied = await assets.copy_to_application(
+            coordinator.client, theirs, APPLICATION_NAME
+        )
+        # By its new folder, not the name that was asked for: the file is
+        # ours now, and the folder in the old name is somebody else's.
+        return await resolve(
+            coordinator.client,
+            notification.upload_for(copied),
+            application_name=APPLICATION_NAME,
+        )
+
+
+async def _async_upload_asset(call: ServiceCall) -> ServiceResponse:
+    """
+    Put a picture or a sound of your own on the bar.
+
+    The device resolves an asset by name inside the folder of whichever
+    application asked for the drawing, so a file uploaded by the BUSY app
+    or the Draw Tool is one this integration cannot name. Uploading it
+    here puts it where Home Assistant can: its own folder, under the name
+    this answers with, which is then what the icon and sound fields take.
+
+    The file is converted on the way - a PNG is scaled and re-encoded for
+    the panel, a WAV for the speaker - because what the bar stores is not
+    what a phone or a laptop calls a picture.
+    """
+    source = pathlib.Path(call.data["file"])
+    if not call.hass.config.is_allowed_path(str(source)):
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="file_not_allowed",
+            translation_placeholders={"file": str(source)},
+        )
+
+    def read() -> bytes:
+        return source.read_bytes()
+
+    try:
+        payload = await call.hass.async_add_executor_job(read)
+    except OSError as err:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="file_unreadable",
+            translation_placeholders={"file": str(source), "error": str(err)},
+        ) from err
+
+    wanted = call.data.get("name") or source.name
+    try:
+        filename, converted = await call.hass.async_add_executor_job(
+            partial(converter.convert_for_storage, wanted, payload)
+        )
+    except BusyBarError as err:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="file_not_convertible",
+            translation_placeholders={"file": str(source), "error": str(err)},
+        ) from err
+
+    answer: dict[str, Any] = {}
+    for coordinator in _coordinators(call.hass, _targeted_devices(call)):
+        try:
+            await coordinator.client.assets_upload(
+                application_name=APPLICATION_NAME,
+                filename=filename,
+                data=converted,
+            )
+        except BusyBarError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="upload_failed",
+                translation_placeholders={
+                    "error": f"{_named(call.hass, coordinator)}: {err}"
+                },
+            ) from err
+        # The name without its extension is what the icon and sound
+        # fields take, which is the only part a caller needs back.
+        answer[_named(call.hass, coordinator)] = {
+            "name": pathlib.Path(filename).stem,
+            "file": filename,
+        }
+    return answer
 
 
 def async_register_services(hass: HomeAssistant) -> None:
@@ -545,3 +840,23 @@ def async_register_services(hass: HomeAssistant) -> None:
         (SERVICE_CLEAR, _async_clear, _TARGET_SCHEMA),
     ):
         hass.services.async_register(DOMAIN, name, handler, schema=schema)
+
+    # Answers with the name the file ended up with, which is what the
+    # icon and sound fields then take.
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_UPLOAD_ASSET,
+        _async_upload_asset,
+        schema=_UPLOAD_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+
+    # Read-only, and the caller always wants the answer: this exists to
+    # be run from the UI and read.
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_LIST_ASSETS,
+        _async_list_assets,
+        schema=_TARGET_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )

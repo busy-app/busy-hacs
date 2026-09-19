@@ -6,13 +6,13 @@
   ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://docs.busy.app/",
+  "documentation": "https://github.com/busy-app/busy-hacs",
   "integration_type": "device",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/busy-app/busy-hacs/issues",
   "quality_scale": "bronze",
   "requirements": [
-    "busylib[aiohttp]>=2.5,<3"
+    "busylib[aiohttp]>=2.6,<3"
   ],
   "version": "1.0.0",
   "zeroconf": [

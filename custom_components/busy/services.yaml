@@ -13,7 +13,6 @@ notify:
       selector:
         text:
     icon:
-      default: none
       example: check
       # Long on purpose: the icons the firmware ships, including the Draw
       # Tool's set, whose names are the ones the Draw Tool shows.
@@ -25,7 +24,6 @@ notify:
           mode: dropdown
           custom_value: true
           options:
-            - none
             - check
             - error
             - info
@@ -101,19 +99,25 @@ notify:
             - dt_work
             - dt_yes
     sound:
-      default: none
-      # The three with short names, and custom_value for anything else the
-      # bar has - the timer's own sounds, or one uploaded to it. busylib
-      # checks the name against that bar rather than against this list.
       selector:
         select:
           mode: dropdown
           custom_value: true
           options:
-            - none
+            # The three short names busylib keeps, and the six files the
+            # firmware actually ships. custom_value takes anything else a
+            # bar has - the names are checked against that bar, not this
+            # list, which can only ever be the set of a particular
+            # firmware.
             - event
             - reminder
             - volume
+            - calendar_event_starts
+            - calendar_reminder_ends
+            - volume_change
+            - countdown_tick
+            - countdown_finish
+            - session_completed
     duration:
       default: 10
       selector:
@@ -121,10 +125,14 @@ notify:
           min: 0
           max: 120
           unit_of_measurement: seconds
+    interrupt:
+      default: false
+      selector:
+        boolean:
     appearance:
       collapsed: true
       fields:
-        font:
+        line_1_font:
           default: small
           selector:
             select:
@@ -137,6 +145,18 @@ notify:
                 - bold
                 - large
                 - extra_large
+        line_2_font:
+          # Two lines fit only the five shorter fonts, so the two tallest
+          # are not offered here - they are a single line's option.
+          selector:
+            select:
+              mode: dropdown
+              options:
+                - tiny
+                - small
+                - normal
+                - condensed
+                - bold
         line_1_color:
           example: [255, 255, 255]
           selector:
@@ -378,18 +398,47 @@ play_sound:
   fields:
     sound:
       required: true
-      # The three with short names, and custom_value for anything else
-      # this bar has - the timer's own sounds, or one uploaded to it.
       selector:
         select:
           mode: dropdown
           custom_value: true
           options:
+            # The three short names busylib keeps, and the six files the
+            # firmware actually ships. custom_value takes anything else a
+            # bar has - the names are checked against that bar, not this
+            # list, which can only ever be the set of a particular
+            # firmware.
             - event
             - reminder
             - volume
+            - calendar_event_starts
+            - calendar_reminder_ends
+            - volume_change
+            - countdown_tick
+            - countdown_finish
+            - session_completed
 
 clear:
   target:
     entity:
       integration: busy
+
+list_assets:
+  target:
+    entity:
+      integration: busy
+
+upload_asset:
+  target:
+    entity:
+      integration: busy
+  fields:
+    file:
+      required: true
+      example: /config/www/logo.png
+      selector:
+        text:
+    name:
+      example: deploy_done.png
+      selector:
+        text:

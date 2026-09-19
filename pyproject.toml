@@ -13,7 +13,7 @@ test = [
   "pytest-asyncio>=0.24",
   "pytest-homeassistant-custom-component>=0.13.365",
   # The integration's own requirement, as its manifest declares it.
-  "busylib[aiohttp]>=2.5,<3",
+  "busylib[aiohttp]>=2.6,<3",
   # services.yaml is read back in a test, to check every action offered
   # in the UI is also described.
   "pyyaml>=6",
