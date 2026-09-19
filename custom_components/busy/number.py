@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from busylib.exceptions import BusyBarError
 from busylib.features import timer
-
 from homeassistant.components.number import NumberEntity, NumberMode, RestoreNumber
 from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant

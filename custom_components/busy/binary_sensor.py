@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from busylib import types
 from busylib.exceptions import BusyBarError
 from busylib.features import timer_state
-
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
-from typing import Any
-
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import PlatformNotReady

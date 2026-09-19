@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from busylib.exceptions import BusyBarError
-
 from homeassistant.components.update import UpdateEntity, UpdateEntityFeature
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, PlatformNotReady
@@ -116,7 +115,11 @@ class BusyBarFirmware(BusyBarEntity, UpdateEntity):
             # Assistant shows an indeterminate bar for None.
             return None
         download = install.download
-        if download is None or not download.total_bytes or download.received_bytes is None:
+        if (
+            download is None
+            or not download.total_bytes
+            or download.received_bytes is None
+        ):
             return None
         return round(download.received_bytes / download.total_bytes * 100)
 

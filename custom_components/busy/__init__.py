@@ -3,21 +3,20 @@
 from functools import partial
 import logging
 
-from homeassistant.const import Platform
+from busylib import AsyncBusyBar
+from busylib.exceptions import BusyBarError
+from busylib.transports import AiohttpTransport
+from homeassistant.const import CONF_DEVICE_ID, CONF_HOST, CONF_TOKEN, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.typing import ConfigType
-from homeassistant.const import CONF_DEVICE_ID, CONF_HOST, CONF_TOKEN
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryError,
     ConfigEntryNotReady,
 )
-
-from busylib import AsyncBusyBar
-from busylib.exceptions import BusyBarError
-from busylib.transports import AiohttpTransport
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN
 from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
@@ -43,6 +42,11 @@ _PLATFORMS: list[Platform] = [
     Platform.UPDATE,
 ]
 _LOGGER = logging.getLogger(__name__)
+
+# Nothing here is configured from YAML - a bar is added through the UI,
+# and `async_setup` exists only to register the actions - so Home
+# Assistant is told as much rather than left to guess.
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:

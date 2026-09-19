@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # The Home Assistant release the test harness pins decides this,
+      # not the integration: it runs inside that Home Assistant.
+      - name: Run the tests
+        run: uv run --python 3.14 --group test pytest -q
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Check formatting and lint
+        run: |
+          uvx ruff@0.16.6 format --check custom_components tests
+          uvx ruff@0.16.6 check custom_components tests
+
+  hassfest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # Home Assistant's own check of a manifest, its brands, its
+      # translations and the shape of the integration.
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: hacs/action@main
+        with:
+          category: integration

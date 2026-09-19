@@ -18,7 +18,6 @@ from busylib.features import (
     collect_device_snapshot,
     input_events,
 )
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -27,7 +26,8 @@ _LOGGER = logging.getLogger(__name__)
 
 # What is polled, because the bar has no push for it: the smart-home
 # switch, the configured brightness, the timezone, the firmware update
-# state and the two cards. The interval is what it is because nothing depends on any of them
+# state and the two cards. The interval is what it is because nothing
+# depends on any of them
 # being prompt - the entities people watch during a session are driven by
 # the stream.
 UPDATE_INTERVAL = timedelta(seconds=30)
@@ -77,10 +77,22 @@ INSTALL_ACTIONS = frozenset(
 )
 
 # The events that bracket an install. A session that has started is still
-# running until it stops, even between actions.
+# running until it stops - including between one action finishing and the
+# next beginning, which is `action_done` and not an idle bar.
 INSTALL_EVENTS = frozenset(
-    {"session_start", "action_begin", "action_progress", "detail_change"}
+    {
+        "session_start",
+        "action_begin",
+        "action_progress",
+        "action_done",
+        "detail_change",
+    }
 )
+
+# And what the bar says when nothing is wrong. Every other value is a
+# refusal or a failure - a low battery, a running session, a checksum
+# that did not match - and none of them is an install still in progress.
+INSTALL_HEALTHY = frozenset({"ok", "", None})
 
 
 def firmware_is_installing(status: types.UpdateStatus | None) -> bool:
@@ -89,6 +101,8 @@ def firmware_is_installing(status: types.UpdateStatus | None) -> bool:
     """
     install = None if status is None else status.install
     if install is None:
+        return False
+    if install.status not in INSTALL_HEALTHY:
         return False
     return install.action in INSTALL_ACTIONS or install.event in INSTALL_EVENTS
 
@@ -205,7 +219,9 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
         # A poll every half minute is plenty until the bar starts
         # installing, and far too slow while it does.
         installing = firmware_is_installing(update_status)
-        self.update_interval = INSTALL_UPDATE_INTERVAL if installing else UPDATE_INTERVAL
+        self.update_interval = (
+            INSTALL_UPDATE_INTERVAL if installing else UPDATE_INTERVAL
+        )
         if installing:
             self._installing_until = datetime.now(UTC) + INSTALL_REBOOT_GRACE
 

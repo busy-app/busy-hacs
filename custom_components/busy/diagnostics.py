@@ -6,7 +6,6 @@ from typing import Any
 
 from busylib.exceptions import BusyBarError
 from busylib.features import assets
-
 from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.const import CONF_TOKEN
 from homeassistant.core import HomeAssistant

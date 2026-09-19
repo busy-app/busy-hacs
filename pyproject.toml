@@ -1,0 +1,36 @@
+[project]
+name = "busy-hacs"
+version = "0.1.0"
+description = "BUSY Bar integration for Home Assistant"
+requires-python = ">=3.14.2"
+
+# Not a package: Home Assistant loads this from custom_components. The
+# project table is here for the tooling below, which is what the tests
+# and the linter are configured by.
+[dependency-groups]
+test = [
+  "pytest>=8",
+  "pytest-asyncio>=0.24",
+  "pytest-homeassistant-custom-component>=0.13.365",
+  # The integration's own requirement, as its manifest declares it.
+  "busylib[aiohttp]>=2.5,<3",
+  # services.yaml is read back in a test, to check every action offered
+  # in the UI is also described.
+  "pyyaml>=6",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = [ "tests" ]
+# The fixtures that make a Home Assistant instance available come from
+# the plugin, which pytest loads by entry point; nothing else to set.
+
+[tool.ruff]
+target-version = "py314"
+
+[tool.ruff.lint]
+select = [ "E", "F", "I", "UP", "W" ]
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
+known-first-party = [ "custom_components" ]

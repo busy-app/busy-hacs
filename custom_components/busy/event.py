@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from busylib.exceptions import BusyBarError
 from busylib.features import ButtonEvent, EncoderEvent, InputEvent
-
 from homeassistant.components.event import EventDeviceClass, EventEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import PlatformNotReady

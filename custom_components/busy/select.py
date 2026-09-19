@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from busylib.exceptions import BusyBarError
 from busylib.features import timer
-
 from homeassistant.components.select import SelectEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant

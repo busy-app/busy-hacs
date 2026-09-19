@@ -18,25 +18,26 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import voluptuous as vol
-
+from busylib import types
+from busylib.exceptions import BusyBarError, BusyBarFeatureUnavailableError
+from busylib.features import notification, timer
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import (
     config_validation as cv,
+)
+from homeassistant.helpers import (
     device_registry as dr,
+)
+from homeassistant.helpers import (
     entity_registry as er,
 )
 from homeassistant.helpers.target import (
     TargetSelection,
     async_extract_referenced_entity_ids,
 )
+import voluptuous as vol
 
-from busylib import types
-from busylib.exceptions import BusyBarError, BusyBarFeatureUnavailableError
-from busylib.features import notification, timer
-
-from .coordinator import QUICK_CARD_ID, BusyBarCoordinator
 from .const import (
     APPLICATION_NAME,
     DEFAULT_DURATION,
@@ -56,6 +57,7 @@ from .const import (
     SERVICE_START_QUICK_SIMPLE,
     SERVICE_STOP_SESSION,
 )
+from .coordinator import QUICK_CARD_ID, BusyBarCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
