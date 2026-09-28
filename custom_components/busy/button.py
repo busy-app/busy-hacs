@@ -25,22 +25,6 @@ _BUTTONS = (
 )
 
 
-# Moving the switch, one button per position. A select entity carried
-# these instead, but Home Assistant then offered every select's generic
-# actions for it - "Select first", "Select next", "Select option" - which
-# say nothing about a bar and cannot be renamed by an integration. A
-# button per position names itself in the automation editor.
-#
-# "Switch" is the firmware's own word for it: the state stream calls the
-# event a SwitchEvent and its values SwitchPosition.
-_POSITIONS = (
-    ("switch_busy", types.InputKey.BUSY),
-    ("switch_custom", types.InputKey.CUSTOM),
-    ("switch_off", types.InputKey.OFF),
-    ("switch_apps", types.InputKey.APPS),
-    ("switch_settings", types.InputKey.SETTINGS),
-)
-
 # Scrolling, which is how the bar is navigated. The keys are called up and
 # down in the HTTP API, but what a person sees is the selection moving
 # sideways - the firmware's menus map up to "focus the next item" and down
@@ -70,7 +54,7 @@ async def async_setup_entry(
         [
             *(
                 BusyBarButton(coordinator, name, key, input_key)
-                for key, input_key in (*_BUTTONS, *_POSITIONS, *_SCROLL)
+                for key, input_key in (*_BUTTONS, *_SCROLL)
             ),
             NextPhaseButton(coordinator, name),
         ]

@@ -202,3 +202,55 @@ async def test_the_screen_does_not_write_a_row_for_every_frame(
 
     assert hass.states.get(screen.entity_id).last_updated == before
     assert not [s for s in hass.states.async_all() if s.domain == "image"]
+
+
+async def test_the_switch_says_where_it_is_and_moves_when_told(
+    hass, prod_entry, bars, busy_network
+) -> None:
+    """
+    Five buttons could move the switch but never say where it stood, so
+    an automation could not ask and a dashboard could not show it. The
+    bar reports the position only when it moves, so until it does the
+    answer is unknown rather than a guess.
+    """
+    bars[PROD_HOST] = FakeBar()
+    prod_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+
+    switch = next(
+        state.entity_id
+        for state in hass.states.async_all()
+        if state.entity_id.startswith("select.")
+        and "switch_position" in state.entity_id
+    )
+    assert hass.states.get(switch).state == "unknown"
+    assert hass.states.get(switch).attributes["options"] == [
+        "busy",
+        "custom",
+        "off",
+        "apps",
+        "settings",
+    ]
+
+    # What the bar puts on the stream when a hand moves it.
+    coordinator = prod_entry.runtime_data
+    coordinator._apply(
+        {"updates": [{"input": {"switch_event": {"position": "CUSTOM"}}}]}
+    )
+    await hass.async_block_till_done()
+    assert hass.states.get(switch).state == "custom"
+
+    await hass.services.async_call(
+        "select",
+        "select_option",
+        {"entity_id": switch, "option": "apps"},
+        blocking=True,
+    )
+    assert bars[PROD_HOST].inputs[-1].name == "APPS"
+
+    assert not [
+        state
+        for state in hass.states.async_all()
+        if state.entity_id.startswith("button.") and "switch_" in state.entity_id
+    ]
