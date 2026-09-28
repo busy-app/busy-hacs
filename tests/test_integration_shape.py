@@ -119,13 +119,25 @@ def test_every_action_is_described() -> None:
     described = json.loads((COMPONENT / "strings.json").read_text())["services"]
 
     assert set(offered) == set(described)
+
+    def named(body: dict) -> set[str]:
+        """
+        Every field of an action, including those inside a collapsible
+        section - which services.yaml nests under the section's own name
+        and the strings keep in a "sections" block beside the fields.
+        """
+        found = set()
+        for key, spec in (body.get("fields") or {}).items():
+            if isinstance(spec, dict) and "fields" in spec:
+                found |= set(spec["fields"])
+            else:
+                found.add(key)
+        for section in (body.get("sections") or {}).values():
+            found |= set(section.get("fields") or {})
+        return found
+
     for name, body in offered.items():
-        fields = set(body.get("fields") or {})
-        # The notify action groups some fields behind a collapsible
-        # section, which describes its contents one level up.
-        if name == "notify":
-            continue
-        assert fields == set(described[name].get("fields") or {}), name
+        assert named(body) == named(described[name]), name
 
 
 def test_the_manifest_asks_for_the_library_it_uses() -> None:

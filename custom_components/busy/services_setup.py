@@ -56,6 +56,7 @@ from .const import (
     DOMAIN,
     MAX_DURATION,
     SERVICE_CLEAR,
+    SERVICE_DRAW,
     SERVICE_LIST_ASSETS,
     SERVICE_NEXT_PHASE,
     SERVICE_NOTIFY,
@@ -125,6 +126,54 @@ _NOTIFY_SCHEMA = vol.Schema(
 _TARGET_SCHEMA = vol.Schema(cv.TARGET_SERVICE_FIELDS)
 
 _SLOT = vol.In(("busy", "custom"))
+
+# Every knob the firmware's own draw call has, for the drawing that does
+# not fit a notification's two lines: a label pinned to a corner, a
+# marquee across the back, something left up until an automation takes it
+# down. The names are the API's own, so what the firmware documents is
+# what the field is called.
+_ALIGNMENTS = (
+    "top_left",
+    "top_mid",
+    "top_right",
+    "mid_left",
+    "center",
+    "mid_right",
+    "bottom_left",
+    "bottom_mid",
+    "bottom_right",
+)
+
+_COORDINATE = vol.All(vol.Coerce(int), vol.Range(min=-4096, max=4095))
+
+_DRAW_SCHEMA = _TARGET_SCHEMA.extend(
+    {
+        vol.Required("text"): cv.string,
+        vol.Optional("display", default="front"): vol.In(("front", "back")),
+        vol.Optional("font", default=notification.DEFAULT_FONT): vol.In(
+            notification.ONE_LINE_FONTS
+        ),
+        vol.Optional("color"): _COLOUR,
+        vol.Optional("align"): vol.In(_ALIGNMENTS),
+        vol.Optional("x", default=0): _COORDINATE,
+        vol.Optional("y", default=0): _COORDINATE,
+        # How wide the label is allowed to be. Text longer than this
+        # scrolls, if a rate was given, and is cut if it was not.
+        vol.Optional("width"): vol.All(vol.Coerce(int), vol.Range(min=1)),
+        vol.Optional("scroll_rate"): vol.All(vol.Coerce(int), vol.Range(min=0)),
+        vol.Optional("scroll_start_delay"): vol.All(vol.Coerce(int), vol.Range(min=0)),
+        vol.Optional("duration", default=DEFAULT_DURATION): vol.All(
+            vol.Coerce(int), vol.Range(min=0, max=MAX_DURATION)
+        ),
+        vol.Optional("interrupt", default=False): cv.boolean,
+        vol.Optional("led_color"): _COLOUR,
+        # Drawing again under one name replaces what it drew, and the
+        # clear action can take the name to remove that one piece. A
+        # drawing with no name of its own is simply "the drawing".
+        vol.Optional("name", default="draw"): cv.matches_regex(r"^[a-zA-Z0-9._-]+$"),
+    }
+)
+
 
 # Durations are minutes in the action and milliseconds on the wire:
 # nobody writes a session length in milliseconds. The bounds are the
@@ -321,25 +370,7 @@ async def _async_notify(call: ServiceCall) -> None:
                         "error": f"{_named(call.hass, coordinator)}: {err}"
                     },
                 ) from err
-            # "Low priority" is true and useless: what a person needs to
-            # know is which of the two cases this is. A running session
-            # refuses every drawing, whatever priority it asks for - the
-            # firmware sets a loader priority above the API's maximum.
-            # The bar's own screens sit lower, and an interrupting
-            # notification gets past them.
-            live = coordinator.data
-            running = (
-                live is not None
-                and live.snapshot.timer is not None
-                and timer.timer_state(live.snapshot.timer).is_running
-            )
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key=(
-                    "session_owns_the_screen" if running else "screen_is_busy"
-                ),
-                translation_placeholders={"bar": _named(call.hass, coordinator)},
-            ) from err
+            raise _screen_is_taken(call.hass, coordinator) from err
         except BusyBarFeatureUnavailableError as err:
             # Caught before BusyBarError, which it subclasses: the fix here
             # is updating the bar's firmware, not retrying, so reporting it
@@ -561,6 +592,94 @@ async def _async_play_sound(call: ServiceCall) -> None:
             stock_path=None if sound.is_upload else sound.reference,
             application_name=APPLICATION_NAME,
         )
+
+    await _for_each_bar(call, work)
+
+
+def _screen_is_taken(
+    hass: HomeAssistant, coordinator: BusyBarCoordinator
+) -> HomeAssistantError:
+    """
+    Which of the two refusals a 409 was, in words worth reading.
+
+    "Low priority" is true and useless: what a person needs to know is
+    what to do about it. A running session refuses every drawing,
+    whatever priority it asks for - the firmware sets a loader priority
+    above the API's maximum - and nothing helps but ending the session.
+    The bar's own screens sit lower, and an interrupting drawing gets
+    past them.
+    """
+    live = coordinator.data
+    running = (
+        live is not None
+        and live.snapshot.timer is not None
+        and timer.timer_state(live.snapshot.timer).is_running
+    )
+    return HomeAssistantError(
+        translation_domain=DOMAIN,
+        translation_key="session_owns_the_screen" if running else "screen_is_busy",
+        translation_placeholders={"bar": _named(hass, coordinator)},
+    )
+
+
+async def _async_draw(call: ServiceCall) -> None:
+    """
+    Put one piece of text on a display, placed exactly.
+
+    The notification action arranges a whole panel and is what most
+    automations want. This is the other half: one element, every field
+    the firmware takes, and a name it can be removed by - which is how a
+    drawing stays up until something takes it down, or gets replaced in
+    place without a flicker.
+
+    The back display is here and not in a notification for the same
+    reason: what goes on the back is usually one word for the room, not
+    a layout.
+    """
+
+    async def work(coordinator: BusyBarCoordinator, data: dict[str, Any]) -> None:
+        element = types.TextElement(
+            id=data["name"],
+            text=data["text"],
+            font=data["font"],
+            color=data.get("color"),
+            align=data.get("align"),
+            x=data["x"],
+            y=data["y"],
+            display=data["display"],
+            width=data.get("width"),
+            scroll_rate=data.get("scroll_rate"),
+            scroll_start_delay=data.get("scroll_start_delay"),
+            # Seconds, and zero means "until something clears it" - the
+            # firmware's own meaning, and the reason this action can put
+            # something up and leave it there.
+            timeout=data["duration"],
+        )
+        payload = types.DisplayElements(
+            application_name=APPLICATION_NAME,
+            priority=(
+                notification.PRIORITY_INTERRUPT
+                if data["interrupt"]
+                else notification.PRIORITY_DEFAULT
+            ),
+            led_notification_color=data.get("led_color"),
+            elements=[element],
+        )
+        try:
+            # The panel's fonts are bitmap ASCII, so anything else is
+            # replaced rather than refused by the bar with a 400 that
+            # says nothing about which character was the problem.
+            await coordinator.client.display_draw(payload, sanitize_text=True)
+        except BusyBarAPIError as err:
+            if err.status_code != 409:
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="notify_failed",
+                    translation_placeholders={
+                        "error": f"{_named(call.hass, coordinator)}: {err}"
+                    },
+                ) from err
+            raise _screen_is_taken(call.hass, coordinator) from err
 
     await _for_each_bar(call, work)
 
@@ -837,6 +956,7 @@ def async_register_services(hass: HomeAssistant) -> None:
         (SERVICE_NEXT_PHASE, _async_next_phase, _TARGET_SCHEMA),
         (SERVICE_SET_THEME, _async_set_theme, _SET_THEME_SCHEMA),
         (SERVICE_PLAY_SOUND, _async_play_sound, _PLAY_SOUND_SCHEMA),
+        (SERVICE_DRAW, _async_draw, _DRAW_SCHEMA),
         (SERVICE_CLEAR, _async_clear, _TARGET_SCHEMA),
     ):
         hass.services.async_register(DOMAIN, name, handler, schema=schema)
