@@ -8,11 +8,11 @@
  */
 
 const KEYS = [
-  ["scroll_left", "chevron-left", "Scroll left"],
-  ["back", "arrow-left", "Back"],
-  ["ok", "check", "OK"],
-  ["start", "play", "Start"],
-  ["scroll_right", "chevron-right", "Scroll right"],
+  ["start", "Start"],
+  ["back", "Back"],
+  ["scroll_left", "←"],
+  ["ok", "OK"],
+  ["scroll_right", "→"],
 ];
 
 const SESSIONS = [
@@ -93,26 +93,42 @@ class BusyBarCard extends HTMLElement {
     this.innerHTML = `
       <ha-card>
         <div class="screen"><img alt="" /></div>
+        <div class="label">Switch</div>
         <div class="row positions"></div>
+        <div class="row keys"></div>
+        <hr />
+        <div class="label">Sessions</div>
         <div class="row sessions"></div>
         <div class="running"></div>
+        <hr />
         <div class="sliders"></div>
-        <div class="row keys"></div>
       </ha-card>
       <style>
         ha-card { padding: 12px; }
         .screen {
           background: #000;
           border-radius: 8px;
-          display: flex;
-          justify-content: center;
-          margin-bottom: 12px;
+          margin-bottom: 14px;
           overflow: hidden;
         }
+        .label {
+          color: var(--secondary-text-color);
+          font-size: 0.8em;
+          letter-spacing: 0.08em;
+          margin-bottom: 6px;
+          text-transform: uppercase;
+        }
+        hr {
+          background: var(--divider-color, #ddd);
+          border: 0;
+          height: 1px;
+          margin: 14px 0;
+        }
         .screen img {
-          height: 128px;
+          display: block;
+          height: auto;
           image-rendering: pixelated;
-          width: 128px;
+          width: 100%;
         }
         .row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
         button {
@@ -145,6 +161,8 @@ class BusyBarCard extends HTMLElement {
         }
         .sliders span { color: var(--secondary-text-color); width: 84px; }
         .sliders input { flex: 1; }
+        .sliders input:disabled { opacity: 0.4; }
+        button.toggle { flex: 0 0 auto; min-height: 30px; padding: 4px 12px; }
         .keys button { flex: 1 1 60px; }
       </style>
     `;
@@ -202,9 +220,12 @@ class BusyBarCard extends HTMLElement {
     const sliders = this.querySelector(".sliders");
     if (!sliders.dataset.ready) {
       sliders.innerHTML = "";
-      for (const [key, label] of [
-        ["brightness", "Brightness"],
-        ["volume", "Volume"],
+      // Each of the two knobs has a switch that overrules it - automatic
+      // brightness, and mute - so they sit on the same line: the setting
+      // and the thing that decides whether the setting is listened to.
+      for (const [key, label, toggle, toggleLabel] of [
+        ["brightness", "Brightness", "automatic_brightness", "Auto"],
+        ["volume", "Volume", "mute", "Mute"],
       ]) {
         if (!mine[key]) continue;
         const row = document.createElement("label");
@@ -216,6 +237,19 @@ class BusyBarCard extends HTMLElement {
             entity_id: mine[key],
             value: Number(input.value),
           });
+        if (mine[toggle]) {
+          const button = document.createElement("button");
+          button.className = "toggle";
+          button.textContent = toggleLabel;
+          button.dataset.key = toggle;
+          button.onclick = () => {
+            const on = state(toggle) && state(toggle).state === "on";
+            this._call("switch", on ? "turn_off" : "turn_on", {
+              entity_id: mine[toggle],
+            });
+          };
+          row.append(button);
+        }
         sliders.append(row);
       }
       sliders.dataset.ready = "1";
@@ -227,11 +261,21 @@ class BusyBarCard extends HTMLElement {
       if (value && document.activeElement !== input) {
         input.value = value.state;
       }
+      // The bar decides the brightness itself while automatic is on, so
+      // the slider says so rather than pretending to be in charge.
+      const automatic = state("automatic_brightness");
+      if (input.dataset.key === "brightness") {
+        input.disabled = Boolean(automatic && automatic.state === "on");
+      }
+    }
+    for (const button of sliders.querySelectorAll("button.toggle")) {
+      const toggle = state(button.dataset.key);
+      button.setAttribute("aria-pressed", String(toggle && toggle.state === "on"));
     }
 
     const keys = this.querySelector(".keys");
     keys.innerHTML = "";
-    for (const [key, , label] of KEYS) {
+    for (const [key, label] of KEYS) {
       if (!mine[key]) continue;
       const button = document.createElement("button");
       button.textContent = label;
