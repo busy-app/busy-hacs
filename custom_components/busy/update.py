@@ -10,11 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, PlatformNotReady
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .coordinator import (
-    BusyBarConfigEntry,
-    BusyBarCoordinator,
-    firmware_is_installing,
-)
+from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
 from .entity import PARALLEL_UPDATES, BusyBarEntity
 
 __all__ = ["PARALLEL_UPDATES", "async_setup_entry"]
@@ -83,6 +79,14 @@ class BusyBarFirmware(BusyBarEntity, UpdateEntity):
 
     @property
     def latest_version(self) -> str | None:
+        installing = self.coordinator.installing
+        if installing is not None:
+            # What the check found is stale for as long as an install
+            # runs: starting one does not touch it, so it goes on naming
+            # the very version being installed. The install is the newer
+            # fact, and naming its target is what makes Home Assistant
+            # show the install rather than an offer to start another.
+            return installing if installing != "?" else self.installed_version
         check = self._check()
         if check is None:
             return None
@@ -95,16 +99,17 @@ class BusyBarFirmware(BusyBarEntity, UpdateEntity):
     @property
     def in_progress(self) -> bool:
         """
-        Whether the bar is installing, for as long as it actually is.
+        Whether an install is under way, for as long as it actually is.
 
         An install is a session of several phases - download, checksum,
-        unpack, prepare, apply - and only the first has a percentage. This
-        used to report the download alone, so the moment that finished the
-        entity went back to offering the update it was in the middle of
-        installing, while the bar carried on.
+        unpack, prepare, apply, reboot - and the bar reports nothing
+        between some of them and nothing at all during the last. Asking
+        "is a phase happening this second" therefore answered no several
+        times per install, and the entity went back to offering the
+        update it was in the middle of installing. The coordinator
+        follows the session instead, which is the question being asked.
         """
-        data = self.coordinator.data
-        return firmware_is_installing(None if data is None else data.update_status)
+        return self.coordinator.installing is not None
 
     @property
     def update_percentage(self) -> int | None:

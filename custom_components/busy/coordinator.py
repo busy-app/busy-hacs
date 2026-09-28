@@ -41,8 +41,10 @@ INSTALL_UPDATE_INTERVAL = timedelta(seconds=5)
 # the best part of a minute. Reporting that as a failure turns the last
 # step of a successful install into an unavailable device, so for this
 # long after the bar was last seen installing, being unreachable is read
-# as "still at it" rather than "gone".
-INSTALL_REBOOT_GRACE = timedelta(minutes=5)
+# as "still at it" rather than "gone". An install that has reported
+# nothing for this long has failed in a way the bar did not say, and
+# holding "installing" forever would be its own kind of lie.
+INSTALL_GIVE_UP = timedelta(minutes=30)
 
 # The stream is dominated by screen frames - roughly thirty per timer change -
 # so most entities are only told about updates that carried something they
@@ -93,7 +95,11 @@ INSTALL_HEALTHY = frozenset({"ok", "", None})
 
 def firmware_is_installing(status: types.UpdateStatus | None) -> bool:
     """
-    Whether the bar is installing firmware at this moment.
+    Whether the bar reports an install happening right now.
+
+    This is the bar's word for this instant, and an instant is not the
+    question a person is asking - see `BusyBarCoordinator.installing`,
+    which is what entities read.
     """
     install = None if status is None else status.install
     if install is None:
@@ -174,7 +180,9 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
         )
         self.client = client
         self.device_id = device_id
-        self._installing_until: datetime | None = None
+        self._installing: str | None = None
+        self._installing_since: datetime | None = None
+        self._installing_version_seen: str | None = None
         self.quick = QuickSession()
         self._stream: asyncio.Task[None] | None = None
         self._input_listeners: list[Callable[[InputEvent], None]] = []
@@ -197,11 +205,7 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
                 for slot in ("busy", "custom")
             }
         except BusyBarError as err:
-            if (
-                self._installing_until is not None
-                and datetime.now(UTC) < self._installing_until
-                and self.data is not None
-            ):
+            if self._installing is not None and self.data is not None:
                 # Mid-install silence is the reboot, not a lost bar.
                 _LOGGER.debug(
                     "BUSY Bar %s is unreachable while installing firmware",
@@ -210,14 +214,16 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
                 return self.data
             raise UpdateFailed(f"BUSY Bar {self.device_id} is unreachable") from err
 
-        # A poll every half minute is plenty until the bar starts
-        # installing, and far too slow while it does.
-        installing = firmware_is_installing(update_status)
-        self.update_interval = (
-            INSTALL_UPDATE_INTERVAL if installing else UPDATE_INTERVAL
-        )
-        if installing:
-            self._installing_until = datetime.now(UTC) + INSTALL_REBOOT_GRACE
+        self._follow_the_install(update_status)
+        if self._installing is not None and not firmware_is_installing(update_status):
+            # The installer has gone quiet. Either the bar has come back
+            # on the new firmware, which is the only unambiguous end an
+            # install has, or it is between phases and this changes
+            # nothing. One read answers that.
+            running = await self.client.status()
+            self._end_the_install_if_it_landed(
+                None if running.firmware is None else running.firmware.version
+            )
 
         if self.data is not None:
             # The stream owns the snapshot; the poll must not undo its work.
@@ -241,6 +247,85 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
             autoupdate=autoupdate,
             cards=cards,
         )
+
+    @property
+    def installing(self) -> str | None:
+        """
+        The version being installed, or None if nothing is being.
+
+        The bar keeps two answers that disagree for the length of an
+        install: what its update check last found, which stays
+        "available" the whole time because starting an install does not
+        touch it, and what the installer is doing this second, which goes
+        quiet between phases and during the reboot. Reading either one
+        alone is how the entity spent an install flickering between
+        "installing" and "there is an update".
+
+        So the install is followed as the session it is: it starts when
+        the bar says a phase began, and it is over when the bar comes
+        back running a different version, or reports a failure, or takes
+        so long that something has clearly gone wrong unobserved.
+        """
+        return self._installing
+
+    def _follow_the_install(self, status: types.UpdateStatus | None) -> None:
+        """
+        Keep track of an install across the gaps in what the bar reports.
+        """
+        install = None if status is None else status.install
+        check = None if status is None else status.check
+        if firmware_is_installing(status):
+            # The installer never says which version it is installing.
+            # The check does, and keeps saying it for the whole install -
+            # the same staleness that made these two disagree is what
+            # names the target here.
+            self._installing = (
+                self._installing
+                or (check.available_version if check is not None else None)
+                or "?"
+            )
+            self._installing_since = datetime.now(UTC)
+        elif self._installing is not None:
+            failed = install is not None and install.status not in INSTALL_HEALTHY
+            expired = (
+                self._installing_since is not None
+                and datetime.now(UTC) - self._installing_since > INSTALL_GIVE_UP
+            )
+            if failed or expired:
+                _LOGGER.info(
+                    "install on %s ended without finishing (%s)",
+                    self.device_id,
+                    "the bar reported a failure" if failed else "nothing reported it",
+                )
+                self._installing = None
+
+        # A poll every half minute is plenty until the bar starts
+        # installing, and far too slow while it does.
+        self.update_interval = (
+            INSTALL_UPDATE_INTERVAL if self._installing else UPDATE_INTERVAL
+        )
+
+    def _end_the_install_if_it_landed(self, running: str | None) -> None:
+        """
+        End the install when the bar comes back on the version it was
+        installing.
+
+        The reboot is the only unambiguous end there is: the installer
+        stops reporting well before it, and the bar's own update check
+        goes on offering the very version being installed until it next
+        runs. Anything short of the new version running is a gap, not an
+        end.
+        """
+        if running is None or self._installing is None:
+            return
+        if running == self._installing:
+            _LOGGER.info(
+                "%s is running %s now, so the install is over",
+                self.device_id,
+                running,
+            )
+            self._installing = None
+            self._installing_version_seen = None
 
     def start_stream(self) -> None:
         """
