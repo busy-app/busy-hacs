@@ -191,3 +191,53 @@ def test_no_translation_carries_a_url() -> None:
     """
     for name in ("strings.json", "translations/en.json"):
         assert "https://" not in (COMPONENT / name).read_text(), name
+
+
+def test_the_card_is_shipped_and_parses() -> None:
+    """
+    The card is served from the integration rather than copied into
+    `www/` by hand, so it arrives and updates with it. A card that fails
+    to parse takes down every custom card on the dashboard, and the only
+    sign is an empty page - so at least check it is there and balanced.
+    """
+    card = COMPONENT / "www/busy-bar-card.js"
+
+    source = card.read_text()
+    assert 'customElements.define("busy-bar-card"' in source
+    assert source.count("{") == source.count("}")
+    assert source.count("(") == source.count(")")
+
+
+def test_what_the_card_asks_of_a_bar_is_what_a_bar_has() -> None:
+    """
+    The card finds entities by the tail of their unique id - "brightness",
+    "session_busy" - which is a contract between two files that nothing
+    else checks. Renaming an entity key on the Python side leaves a
+    control that silently never appears.
+    """
+    source = (COMPONENT / "www/busy-bar-card.js").read_text()
+    translations = json.loads((COMPONENT / "translations/en.json").read_text())
+    known = {key for section in translations["entity"].values() for key in section}
+
+    asked = set(
+        re.findall(
+            r'"(session_\w+|switch_position|screen|brightness|volume|ok|back|start|scroll_left|scroll_right)"',
+            source,
+        )
+    )
+
+    assert asked <= known, f"the card asks for what no bar has: {sorted(asked - known)}"
+
+
+def test_the_card_finds_entities_the_way_the_frontend_allows() -> None:
+    """
+    A dashboard card sees the *display* entity registry, which carries an
+    entity's translation key and not its unique id. Looking one up by
+    unique id therefore finds nothing at all, and the card renders empty
+    rows with no error anywhere - which is exactly how it was written the
+    first time.
+    """
+    source = (COMPONENT / "www/busy-bar-card.js").read_text()
+
+    assert "translation_key" in source
+    assert "unique_id" not in source

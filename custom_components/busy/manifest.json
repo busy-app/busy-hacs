@@ -1,11 +1,16 @@
 {
   "domain": "busy",
   "name": "BUSY Bar",
+  "after_dependencies": [
+    "frontend"
+  ],
   "codeowners": [
     "@busy-app"
   ],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": [
+    "http"
+  ],
   "documentation": "https://github.com/busy-app/busy-hacs",
   "integration_type": "device",
   "iot_class": "local_push",
