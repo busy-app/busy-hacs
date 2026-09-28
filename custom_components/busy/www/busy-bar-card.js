@@ -232,29 +232,29 @@ class BusyBarCard extends HTMLElement {
         row.innerHTML = `<span>${label}</span><input type="range" min="0" max="100" />`;
         const input = row.querySelector("input");
         input.dataset.key = key;
-        input.onchange = () =>
-          this._call("number", "set_value", {
-            entity_id: mine[key],
-            value: Number(input.value),
-          });
         if (mine[toggle]) {
           const button = document.createElement("button");
           button.className = "toggle";
           button.textContent = toggleLabel;
           button.dataset.key = toggle;
-          button.onclick = () => {
-            const on = state(toggle) && state(toggle).state === "on";
-            this._call("switch", on ? "turn_off" : "turn_on", {
-              entity_id: mine[toggle],
-            });
-          };
           row.append(button);
         }
         sliders.append(row);
       }
       sliders.dataset.ready = "1";
     }
+    // Handlers belong here and not where the row was built: the row is
+    // built once and this runs on every update, so one attached up
+    // there closes over the `hass` of the first render and reads a
+    // state frozen at that moment. That is how a toggle turns on and
+    // then never turns off again - it goes on seeing "off" forever.
     for (const input of sliders.querySelectorAll("input")) {
+      const entityId = mine[input.dataset.key];
+      input.onchange = () =>
+        this._call("number", "set_value", {
+          entity_id: entityId,
+          value: Number(input.value),
+        });
       const value = state(input.dataset.key);
       // Not while it is being dragged: writing the old value back under
       // a thumb somebody is holding is how a slider fights its owner.
@@ -269,8 +269,14 @@ class BusyBarCard extends HTMLElement {
       }
     }
     for (const button of sliders.querySelectorAll("button.toggle")) {
-      const toggle = state(button.dataset.key);
-      button.setAttribute("aria-pressed", String(toggle && toggle.state === "on"));
+      const key = button.dataset.key;
+      const toggle = state(key);
+      const on = Boolean(toggle && toggle.state === "on");
+      button.setAttribute("aria-pressed", String(on));
+      button.onclick = () =>
+        this._call("switch", on ? "turn_off" : "turn_on", {
+          entity_id: mine[key],
+        });
     }
 
     const keys = this.querySelector(".keys");
