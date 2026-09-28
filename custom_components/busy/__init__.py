@@ -2,10 +2,13 @@
 
 from functools import partial
 import logging
+import pathlib
 
 from busylib import AsyncBusyBar
 from busylib.exceptions import BusyBarError
 from busylib.transports import AiohttpTransport
+from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.const import CONF_DEVICE_ID, CONF_HOST, CONF_TOKEN, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import (
@@ -48,6 +51,11 @@ _LOGGER = logging.getLogger(__name__)
 # Assistant is told as much rather than left to guess.
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
+# Where the dashboard card is served from, and what tells a browser it
+# changed. Bump the version when the card does.
+_CARD_URL = f"/{DOMAIN}/busy-bar-card.js"
+_CARD_VERSION = "1"
+
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register the integration's actions.
@@ -58,7 +66,41 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     for every bar.
     """
     async_register_services(hass)
+    await _async_offer_the_card(hass)
     return True
+
+
+async def _async_offer_the_card(hass: HomeAssistant) -> None:
+    """
+    Serve the dashboard card and tell the frontend to load it.
+
+    A bar has three dozen entities, and laying them out by hand is a
+    morning's work that everyone repeats. The card is one file with no
+    build step, served from the integration rather than copied into
+    `www/` by hand, so it arrives and updates with the integration.
+
+    Registered here, once, rather than per bar: the card finds its own
+    bar from the device it is configured with.
+    """
+    await hass.http.async_register_static_paths(
+        [
+            StaticPathConfig(
+                _CARD_URL,
+                str(pathlib.Path(__file__).parent / "www/busy-bar-card.js"),
+                cache_headers=False,
+            )
+        ]
+    )
+    if "frontend" not in hass.config.components:
+        # A Home Assistant without a frontend - a test harness, or a
+        # headless install - still gets the integration; there is just
+        # nobody to hand the card to.
+        _LOGGER.debug("no frontend loaded, so the card is served but not offered")
+        return
+
+    # The version is what gets a changed card past the browser's cache,
+    # which otherwise serves the one it downloaded the first time.
+    add_extra_js_url(hass, f"{_CARD_URL}?v={_CARD_VERSION}")
 
 
 async def _async_client(
