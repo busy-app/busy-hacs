@@ -253,3 +253,20 @@ def test_the_card_finds_entities_the_way_the_frontend_allows() -> None:
 
     assert "translation_key" in source
     assert "unique_id" not in source
+
+
+def test_the_card_attaches_handlers_where_the_state_is_fresh() -> None:
+    """
+    The sliders are built once and updated on every change, so a handler
+    attached in the building half closes over the `hass` of the first
+    render and reads a state frozen at that moment. Both toggles shipped
+    that way: they turned on and then never turned off, because the
+    click always saw "off".
+    """
+    source = (COMPONENT / "www/busy-bar-card.js").read_text()
+
+    built_once = source[source.index("if (!sliders.dataset.ready)") :]
+    built_once = built_once[: built_once.index('sliders.dataset.ready = "1"')]
+
+    assert "onclick" not in built_once
+    assert "onchange" not in built_once

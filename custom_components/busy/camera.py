@@ -48,10 +48,13 @@ class BusyBarScreen(BusyBarEntity, Camera):
     asks for one, and Home Assistant makes a stream of them for whoever
     opens the card. Live when watched, silent otherwise.
 
-    The picture is square, which is the shape that survives. Home
-    Assistant draws a picture in entity rows as a round thumbnail cropped
-    to fill, so a wide strip came out as its leftmost fifth; centred in a
-    square, the whole display is there - small, but all of it.
+    The picture keeps the panel's own shape - 72 by 16, enlarged whole
+    pixels at a time. It was padded into a square once, because Home
+    Assistant crops an entity row's thumbnail to a circle and a wide
+    strip came out as its leftmost fifth. That trade is the wrong way
+    round: the strip is what a card shows large and a thumbnail is a
+    glance, so the card gets the real shape and the thumbnail gets the
+    middle of it.
 
     The frames arrive on the state stream the coordinator is already
     following, so this costs no extra requests: the bar sends them
@@ -88,5 +91,4 @@ class BusyBarScreen(BusyBarEntity, Camera):
         frame = None if data is None else data.snapshot.screen_front
         if frame is None:
             return None
-        enlarged = frame.scale(_SCALE)
-        return enlarged.pad(enlarged.width, enlarged.width).to_png()
+        return frame.scale(_SCALE).to_png()
