@@ -92,6 +92,7 @@ class FakeBar:
         self.http_api = http_api
         self.closed = False
         self.inputs: list[Any] = []
+        self.drawn: list[Any] = []
 
     def _refuse_if_off(self) -> None:
         if not self.http_api:
@@ -125,6 +126,13 @@ class FakeBar:
         """
         self._refuse_if_off()
         self.inputs.append(key)
+
+    async def display_draw(self, display_data: Any, **_: Any) -> Any:
+        """
+        Keep what was drawn, as the model the library built for the bar.
+        """
+        self._refuse_if_off()
+        self.drawn.append(display_data)
         return MagicMock()
 
     async def name(self) -> types.DeviceNameResponse:

@@ -467,3 +467,44 @@ async def test_an_upload_can_be_named_with_its_file_name(
 
     _, kwargs = notified.call_args
     assert kwargs["icon"].path == "logo.png"
+
+
+async def test_a_drawing_says_where_it_goes_and_survives_until_cleared(
+    hass, prod_entry, bars, busy_network, quiet_snapshot
+) -> None:
+    """
+    The notification action arranges a panel; this one places one piece
+    of text exactly, on either display, and a duration of zero leaves it
+    there until something takes it down.
+    """
+    bar = FakeBar()
+    bars[PROD_HOST] = bar
+    prod_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        DOMAIN,
+        "draw",
+        {
+            "device_id": _device_id(hass, prod_entry),
+            "text": "ON AIR",
+            "display": "back",
+            "font": "bold",
+            "color": [255, 0, 0],
+            "align": "center",
+            "duration": 0,
+            "name": "on_air",
+            "led_color": [255, 0, 0],
+        },
+        blocking=True,
+    )
+
+    payload = bar.drawn[-1]
+    element = payload.elements[0]
+    assert (element.text, element.font, element.display) == ("ON AIR", "bold", "back")
+    assert (element.align, element.id, element.timeout) == ("center", "on_air", 0)
+    assert payload.led_notification_color is not None
+    # Ordinary priority: a drawing that shouts over other applications is
+    # something a person asks for by name.
+    assert payload.priority == 50

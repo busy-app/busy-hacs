@@ -275,6 +275,74 @@
           "description": "What to call it there. Defaults to the file's own name; an icon wider than the panel is refused when it is used, so keep pictures small."
         }
       }
+    },
+    "draw": {
+      "name": "Draw on a display",
+      "description": "Draws one piece of text on a bar, placed exactly - on either display, at any anchor and coordinates, scrolling or still, for a while or until something clears it. The notification action arranges a whole panel; this one is for the times you want to say where.",
+      "fields": {
+        "text": {
+          "name": "Text",
+          "description": "What to write. The panel's fonts are bitmap ASCII, so anything else is replaced rather than drawn."
+        },
+        "display": {
+          "name": "Display",
+          "description": "Which side to draw on. The back is the one the room sees."
+        },
+        "font": {
+          "name": "Font",
+          "description": "How big the text is. The two largest fill the panel's height on their own."
+        },
+        "color": {
+          "name": "Colour",
+          "description": "Colour of the text. White if left out."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "How long it stays up, in seconds. Zero leaves it there until something clears it - the “Clear the display” action, or another drawing under the same name."
+        },
+        "align": {
+          "name": "Anchor",
+          "description": "Which point of the text the coordinates count to. Centre with no coordinates puts it in the middle of the panel."
+        },
+        "x": {
+          "name": "X",
+          "description": "Pixels from the left edge of the display, counted to the anchor."
+        },
+        "y": {
+          "name": "Y",
+          "description": "Pixels from the top edge of the display, counted to the anchor."
+        },
+        "width": {
+          "name": "Width",
+          "description": "How wide the text may be, in pixels. Longer text scrolls if given a scroll rate, and is cut if not."
+        },
+        "scroll_rate": {
+          "name": "Scroll rate",
+          "description": "Pixels per minute. Left out, text that does not fit stands still."
+        },
+        "scroll_start_delay": {
+          "name": "Scroll delay",
+          "description": "Milliseconds to stand still before scrolling, so the beginning can be read."
+        },
+        "led_color": {
+          "name": "LED colour",
+          "description": "Blink the bar's status LED in this colour as the drawing appears."
+        },
+        "interrupt": {
+          "name": "Show it over other drawings",
+          "description": "Draws above what other applications put on the panel. A running session still refuses every drawing, whatever this says."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Names this drawing, so drawing again under the same name replaces it instead of adding to it. Left out, it is simply “draw”."
+        }
+      },
+      "sections": {
+        "placement": {
+          "name": "Placement",
+          "description": "Where it sits, how it scrolls, and what it is called."
+        }
+      }
     }
   },
   "entity": {
