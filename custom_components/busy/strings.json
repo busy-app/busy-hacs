@@ -380,6 +380,16 @@
       },
       "quick_theme_interval": {
         "name": "Quick 4 Interval theme"
+      },
+      "switch_position": {
+        "name": "Switch position",
+        "state": {
+          "busy": "BUSY",
+          "custom": "CUSTOM",
+          "off": "Off",
+          "apps": "Apps",
+          "settings": "Settings"
+        }
       }
     },
     "switch": {
@@ -422,21 +432,6 @@
       },
       "start": {
         "name": "Press Start"
-      },
-      "switch_busy": {
-        "name": "Switch to Busy"
-      },
-      "switch_custom": {
-        "name": "Switch to Custom"
-      },
-      "switch_off": {
-        "name": "Switch to Off"
-      },
-      "switch_apps": {
-        "name": "Switch to Apps"
-      },
-      "switch_settings": {
-        "name": "Switch to Settings"
       },
       "scroll_left": {
         "name": "Scroll left"

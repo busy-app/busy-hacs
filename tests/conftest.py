@@ -91,6 +91,7 @@ class FakeBar:
         self.base_url = f"http://{host}"
         self.http_api = http_api
         self.closed = False
+        self.inputs: list[Any] = []
 
     def _refuse_if_off(self) -> None:
         if not self.http_api:
@@ -116,6 +117,16 @@ class FakeBar:
     # What the poll asks for, answered with the library's own models
     # rather than mocks: an entity showing a mock is a test that passes
     # while Home Assistant cannot serialise its own state machine.
+    async def input(self, key: Any) -> Any:
+        """
+        A key press, as the bar's HTTP API takes one. Recorded rather than
+        acted on: the firmware answers a press with an event on the state
+        stream, which the tests feed in themselves when they want one.
+        """
+        self._refuse_if_off()
+        self.inputs.append(key)
+        return MagicMock()
+
     async def name(self) -> types.DeviceNameResponse:
         self._refuse_if_off()
         return types.DeviceNameResponse(name=self.bar_name)
