@@ -271,6 +271,7 @@ def test_the_card_attaches_handlers_where_the_state_is_fresh() -> None:
     assert "onclick" not in built_once
     assert "onchange" not in built_once
 
+
 def test_the_quality_scale_names_every_rule_of_its_tier() -> None:
     """
     The manifest claims a tier; this file is where that claim is either

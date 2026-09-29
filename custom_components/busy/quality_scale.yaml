@@ -36,30 +36,21 @@ rules:
   # busylib is on PyPI, built from a public repository by its own CI.
   dependency-transparency: done
 
-  docs-actions:
-    status: todo
-    comment: >-
-      Every action is described in strings.json, which is what the UI
-      shows; the README does not list them with examples.
+  # Every action is in the README with what it does, and the two worth
+  # showing - a notification and a drawing - with an example each.
+  docs-actions: done
 
   docs-conditions:
     status: exempt
     comment: The integration provides no conditions.
 
-  docs-high-level-description:
-    status: todo
-    comment: The README opens with detail rather than with what this is.
+  docs-high-level-description: done
 
-  docs-installation-instructions:
-    status: todo
-    comment: >-
-      Adding the custom repository, the HTTP API switch on the bar, and
-      the access key are in the config flow's own strings and nowhere a
-      person can read before installing.
+  # The custom repository, the bar's HTTP API switch and its access key,
+  # in that order, where they can be read before installing anything.
+  docs-installation-instructions: done
 
-  docs-removal-instructions:
-    status: todo
-    comment: Nothing says what removing it leaves behind on the bar.
+  docs-removal-instructions: done
 
   docs-triggers:
     status: exempt
