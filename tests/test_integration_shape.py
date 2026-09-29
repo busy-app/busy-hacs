@@ -270,3 +270,66 @@ def test_the_card_attaches_handlers_where_the_state_is_fresh() -> None:
 
     assert "onclick" not in built_once
     assert "onchange" not in built_once
+
+def test_the_quality_scale_names_every_rule_of_its_tier() -> None:
+    """
+    The manifest claims a tier; this file is where that claim is either
+    kept or admitted to. A rule missing from it is a rule nobody is
+    tracking, which is how a claimed tier quietly stops being true.
+    """
+    bronze = {
+        "action-setup",
+        "appropriate-polling",
+        "brands",
+        "common-modules",
+        "config-flow",
+        "config-flow-test-coverage",
+        "dependency-transparency",
+        "docs-actions",
+        "docs-conditions",
+        "docs-high-level-description",
+        "docs-installation-instructions",
+        "docs-removal-instructions",
+        "docs-triggers",
+        "entity-event-setup",
+        "entity-unique-id",
+        "has-entity-name",
+        "runtime-data",
+        "test-before-configure",
+        "test-before-setup",
+        "unique-config-entry",
+    }
+
+    manifest = json.loads((COMPONENT / "manifest.json").read_text())
+    scale = yaml.safe_load((COMPONENT / "quality_scale.yaml").read_text())["rules"]
+
+    assert manifest["quality_scale"] == "bronze"
+    assert set(scale) == bronze
+
+    for rule, entry in scale.items():
+        status = entry if isinstance(entry, str) else entry["status"]
+        assert status in {"done", "todo", "exempt"}, rule
+        if status != "done":
+            # A rule that is not done has to say what is left, or the
+            # file is a list of shrugs.
+            assert isinstance(entry, dict) and entry.get("comment"), rule
+
+
+def test_the_brand_images_are_the_sizes_brands_asks_for() -> None:
+    """
+    home-assistant/brands rejects anything else: icons are square 256 and
+    512, and a logo's shortest side is 128-256 normal, 256-512 hDPI.
+    """
+    import struct
+
+    def size(name: str) -> tuple[int, int]:
+        data = (COMPONENT.parent.parent / "brand" / name).read_bytes()
+        assert data[:8] == b"\x89PNG\r\n\x1a\n", name
+        return struct.unpack(">II", data[16:24])
+
+    assert size("icon.png") == (256, 256)
+    assert size("icon@2x.png") == (512, 512)
+    for name in ("logo.png", "dark_logo.png"):
+        assert 128 <= min(size(name)) <= 256, name
+    for name in ("logo@2x.png", "dark_logo@2x.png"):
+        assert 256 <= min(size(name)) <= 512, name
