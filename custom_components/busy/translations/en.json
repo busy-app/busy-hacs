@@ -68,18 +68,6 @@
     "invalid_timer_request": {
       "message": "The bar cannot do that: {error}"
     },
-    "file_not_allowed": {
-      "message": "Home Assistant is not allowed to read {file}. Put the file under its `www` folder or a media folder, or add the folder to `allowlist_external_dirs`."
-    },
-    "file_unreadable": {
-      "message": "Cannot read {file}: {error}"
-    },
-    "file_not_convertible": {
-      "message": "{file} cannot be converted for the bar: {error}"
-    },
-    "upload_failed": {
-      "message": "The bar did not take the file: {error}"
-    },
     "session_owns_the_screen": {
       "message": "{bar} is running a session, and a session refuses every drawing while it lasts - there is no priority that gets past it. End the session, or let it finish."
     },
@@ -88,9 +76,6 @@
     },
     "unknown_asset": {
       "message": "This bar has no {kind} called {name}. It has {count} of them - run the “List what a bar can show and play” action to see which."
-    },
-    "upload_would_be_replaced": {
-      "message": "Taking {name} from {application} would write over a file of your own under the same name. Name yours as {own}, or upload theirs under a different name."
     },
     "unknown_asset_closest": {
       "message": "This bar has no {kind} called {name}. The closest it has: {closest}. Run the “List what a bar can show and play” action for all {count}."
@@ -111,11 +96,11 @@
         },
         "icon": {
           "name": "Icon",
-          "description": "The icon drawn at the left edge, by name. To see what this bar has, run the “List what a bar can show and play” action for this bar's own set. A bare name is read as your own upload first and then as one the firmware ships; write `draw_tool/logo` - or `draw_tool/logo.png` - to mean a file another app uploaded, which is copied into Home Assistant's folder the first time you name it."
+          "description": "The icon drawn at the left edge, by name. To see what this bar has, run the “List what a bar can show and play” action for this bar's own set."
         },
         "sound": {
           "name": "Sound",
-          "description": "A sound to play with the notification; leave it empty for silence. To hear what this bar has, run the “List what a bar can show and play” action for this bar's own set. Names work as for the icon: your own upload wins a bare name, and `app_name/sound` says which folder you mean."
+          "description": "A sound to play with the notification; leave it empty for silence. To hear what this bar has, run the “List what a bar can show and play” action for this bar's own set."
         },
         "duration": {
           "name": "Duration",
@@ -144,6 +129,12 @@
         "interrupt": {
           "name": "Show it over other drawings",
           "description": "Puts this notification above whatever else is drawn on the bar by an app. It does not get past a running session: the firmware refuses every drawing while one is on."
+        }
+      },
+      "sections": {
+        "appearance": {
+          "name": "Appearance",
+          "description": "Font sizes and colours for the text."
         }
       }
     },
@@ -259,22 +250,8 @@
     },
     "list_assets": {
       "name": "List what a bar can show and play",
-      "description": "Answers with the icons, animations, sounds, fonts and themes this bar holds - the firmware's own and anything uploaded to it, which no fixed list can know. Every name comes back written the way a field takes it, so the answer can be read straight into an automation. The whole set is pictured in the documentation, linked from this integration's page.",
+      "description": "Answers with the icons, animations, sounds, fonts and themes this bar's firmware ships, which no fixed list can know. Every name comes back written the way a field takes it, so the answer can be read straight into an automation. The whole set is pictured in the documentation, linked from this integration's page.",
       "fields": {}
-    },
-    "upload_asset": {
-      "name": "Put a picture or sound of your own on a bar",
-      "description": "Uploads a file from this Home Assistant to the bar, converted for it on the way, and answers with the name to use. That name is then what the icon and sound fields take. A file uploaded by the BUSY app or the Draw Tool cannot be used from here: the bar keeps each application's uploads apart, and only reaches its own.",
-      "fields": {
-        "file": {
-          "name": "File",
-          "description": "Path to the file on the machine Home Assistant runs on. It has to be somewhere Home Assistant is allowed to read - `/config/www` and the media folders are, by default. A picture is scaled to the panel and a sound re-encoded for the speaker."
-        },
-        "name": {
-          "name": "Name on the bar",
-          "description": "What to call it there. Defaults to the file's own name; an icon wider than the panel is refused when it is used, so keep pictures small."
-        }
-      }
     },
     "draw": {
       "name": "Draw on a display",
@@ -427,27 +404,27 @@
         "name": "Sound volume"
       },
       "quick_timer_simple": {
-        "name": "Quick 3 Simple minutes"
+        "name": "3 Simple minutes"
       },
       "quick_timer_interval_work": {
-        "name": "Quick 5 Interval work"
+        "name": "5 Interval work"
       },
       "quick_timer_interval_rest": {
-        "name": "Quick 6 Interval rest"
+        "name": "6 Interval rest"
       },
       "quick_timer_interval_cycles": {
-        "name": "Quick 7 Interval cycles"
+        "name": "7 Interval cycles"
       }
     },
     "select": {
       "quick_theme_infinite": {
-        "name": "Quick 1 Infinite theme"
+        "name": "1 Infinite theme"
       },
       "quick_theme_simple": {
-        "name": "Quick 2 Simple theme"
+        "name": "2 Simple theme"
       },
       "quick_theme_interval": {
-        "name": "Quick 4 Interval theme"
+        "name": "4 Interval theme"
       },
       "switch_position": {
         "name": "Switch position",

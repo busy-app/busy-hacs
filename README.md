@@ -79,7 +79,6 @@ followed without being reconfigured.
 | `busy.set_theme` | Change how the bar looks, for this session or for a card |
 | `busy.play_sound` | Play any sound the bar has |
 | `busy.list_assets` | Answer with every icon, animation, sound, font and theme this bar holds |
-| `busy.upload_asset` | Put a picture or sound of your own on the bar |
 
 A notification:
 
@@ -117,7 +116,7 @@ actions:
 ### Icons, sounds and themes
 
 These are files on the bar, so no list written down here is true of every
-bar: a firmware release adds some, and an owner can upload or delete others.
+bar: a firmware release adds some.
 `busy.list_assets` answers for the bar in front of you, and the whole shipped
 set is pictured in
 [busylib's stock assets guide](https://busy-app.github.io/busylib-py/guides/stock-assets/).
@@ -128,11 +127,8 @@ set, under the names the Draw Tool shows, so a picture of any of them is one
 tap away in the BUSY app. Those are 16 pixels wide against the built-in 8,
 which leaves 56 of the panel's 72 for the text beside them.
 
-A file you uploaded yourself wins its name over a built-in one. A file
-another application uploaded is named with its folder - `draw_tool/logo` -
-and is copied into Home Assistant's own folder the first time it is used,
-because the bar resolves a name inside the folder of whichever application
-is drawing.
+Only the firmware's own icons and sounds can be named here. Files uploaded
+to the bar by hand or by another application are not offered.
 
 ### Dashboard card
 
@@ -191,10 +187,7 @@ application is holding the screen. The error says which. For the second case,
 
 ## Removing the integration
 
-This integration follows standard integration removal. Deleting it leaves two
-things on the bar, which are harmless and can be removed from the bar itself:
-
-- the access token Home Assistant was given, which stays until it is revoked
-  on the bar;
-- anything uploaded with `busy.upload_asset`, which stays in the bar's
-  storage under `home_assistant`.
+This integration follows standard integration removal. Deleting it leaves
+one thing on the bar, which is harmless and can be removed from the bar
+itself: the access token Home Assistant was given, which stays until it is
+revoked on the bar.
