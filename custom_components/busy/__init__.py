@@ -1,6 +1,7 @@
 """The BUSY Bar integration."""
 
 from functools import partial
+import hashlib
 import logging
 import pathlib
 
@@ -51,10 +52,22 @@ _LOGGER = logging.getLogger(__name__)
 # Assistant is told as much rather than left to guess.
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-# Where the dashboard card is served from, and what tells a browser it
-# changed. Bump the version when the card does.
+# Where the dashboard card is served from.
+_CARD = pathlib.Path(__file__).parent / "www/busy-bar-card.js"
 _CARD_URL = f"/{DOMAIN}/busy-bar-card.js"
-_CARD_VERSION = "1"
+
+
+def card_version(path: pathlib.Path = _CARD) -> str:
+    """
+    What tells a browser the card changed: a hash of the file itself.
+
+    The browser keeps the copy it downloaded the first time and serves it until
+    the address changes, so a changed card needs a changed address. A version
+    number someone has to remember to raise is a chore that gets forgotten, and
+    a forgotten one means everybody keeps the old card; a hash of the file moves
+    exactly when the file does.
+    """
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:10]
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -86,7 +99,7 @@ async def _async_offer_the_card(hass: HomeAssistant) -> None:
         [
             StaticPathConfig(
                 _CARD_URL,
-                str(pathlib.Path(__file__).parent / "www/busy-bar-card.js"),
+                str(_CARD),
                 cache_headers=False,
             )
         ]
@@ -98,9 +111,8 @@ async def _async_offer_the_card(hass: HomeAssistant) -> None:
         _LOGGER.debug("no frontend loaded, so the card is served but not offered")
         return
 
-    # The version is what gets a changed card past the browser's cache,
-    # which otherwise serves the one it downloaded the first time.
-    add_extra_js_url(hass, f"{_CARD_URL}?v={_CARD_VERSION}")
+    version = await hass.async_add_executor_job(card_version)
+    add_extra_js_url(hass, f"{_CARD_URL}?v={version}")
 
 
 async def _async_client(
