@@ -221,3 +221,81 @@ async def test_the_usb_address_is_the_last_resort(
     await hass.async_block_till_done()
 
     assert created["data"][CONF_HOST] == expected
+
+
+async def test_an_announcement_without_an_address_falls_back_to_a_scan(
+    hass, busy_network, no_setup
+) -> None:
+    """
+    Nothing to talk to is not a reason to fail: the scan can still find
+    the bar, and the person is offered it as they would be from "Add".
+    """
+    started = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_ZEROCONF},
+        data=announcement(addresses=["fe80::1"]),
+    )
+    scanned = await hass.config_entries.flow.async_configure(started["flow_id"], {})
+
+    assert scanned["type"] is FlowResultType.FORM
+    assert scanned["step_id"] == "select_device"
+
+
+async def test_a_bar_that_wants_a_password_asks_for_it(
+    hass, bars, busy_network, no_setup
+) -> None:
+    """
+    Minting without a password is tried first; when the bar refuses, the
+    person is asked, and a wrong answer asks again rather than ending
+    the flow.
+    """
+    bars[PROD_HOST] = FakeBar(password="open sesame")
+
+    started = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    asked = await hass.config_entries.flow.async_configure(
+        started["flow_id"], {"device": PROD_NAME}
+    )
+    assert asked["type"] is FlowResultType.FORM
+    assert asked["step_id"] == "mint_token"
+
+    wrong = await hass.config_entries.flow.async_configure(
+        asked["flow_id"], {"password": "not it"}
+    )
+    assert wrong["type"] is FlowResultType.FORM
+    assert wrong["step_id"] == "mint_token"
+
+    right = await hass.config_entries.flow.async_configure(
+        wrong["flow_id"], {"password": "open sesame"}
+    )
+    await hass.async_block_till_done()
+
+    assert right["type"] is FlowResultType.CREATE_ENTRY
+    assert right["data"][CONF_TOKEN]
+
+
+async def test_picking_a_bar_replaces_its_unconfirmed_discovery(
+    hass, busy_network, no_setup
+) -> None:
+    """
+    A discovery waits in "Discovered" until somebody confirms it, and a
+    person who adds the same bar by hand is the one driving. Theirs wins;
+    the stale one is dropped instead of blocking them.
+    """
+    discovery = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_ZEROCONF}, data=announcement()
+    )
+    assert discovery["step_id"] == "zeroconf_confirm"
+
+    started = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    chosen = await hass.config_entries.flow.async_configure(
+        started["flow_id"], {"device": PROD_NAME}
+    )
+    await hass.async_block_till_done()
+
+    assert chosen["type"] is FlowResultType.CREATE_ENTRY
+    waiting = [f["flow_id"] for f in hass.config_entries.flow.async_progress()]
+    assert discovery["flow_id"] not in waiting
