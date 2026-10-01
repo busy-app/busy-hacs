@@ -21,6 +21,8 @@ from busylib.devices import BusyBarAddress, BusyBarAddressAffinity, BusyBarDevic
 from busylib.exceptions import BusyBarRequestError
 from busylib.features import DeviceSnapshot
 from homeassistant.const import CONF_DEVICE_ID, CONF_HOST, CONF_TOKEN
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -305,10 +307,10 @@ def busy_network(
         return None if address is None else client_for(address)
 
     with (
-        patch("custom_components.busy.AsyncBusyBar", side_effect=client_for),
+        patch("custom_components.busy.connection.AsyncBusyBar", side_effect=client_for),
         patch.object(BusyBarDevice, "to_async_client", client_from_device),
         patch(
-            "custom_components.busy.async_discover_busy",
+            "custom_components.busy.connection.async_discover_busy",
             AsyncMock(side_effect=lambda hass: list(discovered)),
         ),
         patch(
@@ -364,3 +366,56 @@ def prod_entry() -> MockConfigEntry:
             CONF_HOST: PROD_HOST,
         },
     )
+
+
+@pytest.fixture
+async def bar(hass, prod_entry, bars, busy_network, quiet_snapshot) -> FakeBar:
+    """
+    The bar already added and set up, with everything the integration makes
+    for it: what most tests want to drive.
+    """
+    bars[PROD_HOST] = FakeBar()
+    prod_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+    return bars[PROD_HOST]
+
+
+@pytest.fixture
+def device_id(hass, bar, prod_entry) -> str:
+    """The Home Assistant device id of the bar, which is what a target takes."""
+    registry = dr.async_get(hass)
+    return dr.async_entries_for_config_entry(registry, prod_entry.entry_id)[0].id
+
+
+@pytest.fixture
+def act(hass, device_id):
+    """
+    Call an action of the integration on the bar, as an automation would.
+    """
+
+    async def call(action: str, *, response: bool = False, **data: Any) -> Any:
+        return await hass.services.async_call(
+            DOMAIN,
+            action,
+            {"device_id": device_id, **data},
+            blocking=True,
+            return_response=response,
+        )
+
+    return call
+
+
+@pytest.fixture
+def entity_id(hass, bar):
+    """The entity id of the bar's entity with a translation key (`switch`...)."""
+
+    def find(domain: str, key: str) -> str:
+        entry = er.async_get(hass)
+        return next(
+            e.entity_id
+            for e in entry.entities.values()
+            if e.domain == domain and e.translation_key == key
+        )
+
+    return find

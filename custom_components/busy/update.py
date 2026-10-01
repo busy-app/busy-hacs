@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from busylib.exceptions import BusyBarError
 from homeassistant.components.update import UpdateEntity, UpdateEntityFeature
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError, PlatformNotReady
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
@@ -28,15 +27,7 @@ async def async_setup_entry(
     config_entry: BusyBarConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    coordinator = config_entry.runtime_data
-    try:
-        name = (await coordinator.client.name()).name
-    except BusyBarError as err:
-        raise PlatformNotReady(
-            f"BUSY Bar {coordinator.device_id} is unreachable"
-        ) from err
-
-    async_add_entities([BusyBarFirmware(coordinator, name)])
+    async_add_entities([BusyBarFirmware(config_entry.runtime_data)])
 
 
 class BusyBarFirmware(BusyBarEntity, UpdateEntity):
@@ -54,28 +45,23 @@ class BusyBarFirmware(BusyBarEntity, UpdateEntity):
         UpdateEntityFeature.INSTALL | UpdateEntityFeature.PROGRESS
     )
 
-    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "firmware")
+    def __init__(self, coordinator: BusyBarCoordinator) -> None:
+        super().__init__(coordinator, "firmware")
 
     def _install(self):
-        data = self.coordinator.data
-        if data is None or data.update_status is None:
-            return None
-        return data.update_status.install
+        status = self.data.update_status
+        return None if status is None else status.install
 
     def _check(self):
-        data = self.coordinator.data
-        if data is None or data.update_status is None:
-            return None
-        return data.update_status.check
+        status = self.data.update_status
+        return None if status is None else status.check
 
     @property
     def installed_version(self) -> str | None:
-        data = self.coordinator.data
-        if data is None or data.snapshot.status is None:
+        status = self.data.snapshot.status
+        if status is None or status.firmware is None:
             return None
-        firmware = data.snapshot.status.firmware
-        return None if firmware is None else firmware.version
+        return status.firmware.version
 
     @property
     def latest_version(self) -> str | None:
@@ -150,12 +136,6 @@ class BusyBarFirmware(BusyBarEntity, UpdateEntity):
                 translation_domain="busy",
                 translation_key="no_firmware_to_install",
             )
-        try:
-            await self.coordinator.client.update_install(target)
-        except BusyBarError as err:
-            raise HomeAssistantError(
-                translation_domain="busy",
-                translation_key="firmware_install_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
-        await self.coordinator.async_request_refresh()
+        await self._write(
+            self.coordinator.client.update_install(target), "firmware_install_failed"
+        )
