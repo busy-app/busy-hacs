@@ -319,11 +319,33 @@ class BusyBarCard extends HTMLElement {
   }
 }
 
-customElements.define("busy-bar-card", BusyBarCard);
+/*
+ * Registered when Home Assistant's own interface exists, not the moment this
+ * file loads. The file is an extra module and can run before the interface
+ * has started; a card defined that early was reported to be named in the card
+ * picker and missing when it was added to a dashboard. Waiting for
+ * `home-assistant` puts the card where the interface looks, whichever loads
+ * first - and the timeout registers it anyway on a page that never defines
+ * one (an embedded or stripped-down frontend), rather than never.
+ *
+ * Idempotent: the file can be loaded twice (a cached copy and a fresh one),
+ * and defining an element twice throws.
+ */
+function registerCard() {
+  if (!window.customElements.get("busy-bar-card")) {
+    window.customElements.define("busy-bar-card", BusyBarCard);
+  }
+  window.customCards = window.customCards || [];
+  if (!window.customCards.some((card) => card.type === "busy-bar-card")) {
+    window.customCards.push({
+      type: "busy-bar-card",
+      name: "BUSY Bar",
+      description: "The bar's screen and every control it has",
+    });
+  }
+}
 
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "busy-bar-card",
-  name: "BUSY Bar",
-  description: "The bar's screen and every control it has",
-});
+Promise.race([
+  window.customElements.whenDefined("home-assistant"),
+  new Promise((resolve) => window.setTimeout(resolve, 3000)),
+]).then(registerCard);
