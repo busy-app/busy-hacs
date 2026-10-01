@@ -26,12 +26,10 @@ rules:
 
   config-flow: done
 
-  config-flow-test-coverage:
-    status: todo
-    comment: >-
-      91% today - discovery, the picker, a bar already added, a bar with
-      its HTTP API off. The eight uncovered lines are the error paths of
-      minting a token.
+  # Every line of config_flow.py is run by a test: discovery, the picker,
+  # a bar already added, a bar with its HTTP API off, and the password
+  # asked for when a bar will not mint a token without one.
+  config-flow-test-coverage: done
 
   # busylib is on PyPI, built from a public repository by its own CI.
   dependency-transparency: done

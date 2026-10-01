@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from busylib import types
 from busylib.devices import BusyBarAddress, BusyBarAddressAffinity, BusyBarDevice
-from busylib.exceptions import BusyBarRequestError
+from busylib.exceptions import BusyBarError, BusyBarRequestError
 from busylib.features import DeviceSnapshot
 from homeassistant.const import CONF_DEVICE_ID, CONF_HOST, CONF_TOKEN
 import pytest
@@ -84,12 +84,17 @@ class FakeBar:
         host: str = PROD_HOST,
         *,
         http_api: bool = True,
+        password: str | None = None,
     ) -> None:
         self.device_id = device_id
         self.bar_name = name
         self.host = host
         self.base_url = f"http://{host}"
         self.http_api = http_api
+        # A bar that wants a password before it mints a token, and the
+        # one the client was built with.
+        self.password = password
+        self.token: str | None = None
         self.closed = False
         self.inputs: list[Any] = []
         self.drawn: list[Any] = []
@@ -106,6 +111,8 @@ class FakeBar:
 
     async def access_token_mint(self, name: str) -> Any:
         self._refuse_if_off()
+        if self.password is not None and self.token != self.password:
+            raise BusyBarError("a password is needed")
         return MagicMock(token=f"token-for-{self.device_id}", short_id="abcd")
 
     async def access(self) -> Any:
@@ -292,17 +299,18 @@ def busy_network(
     paths agree.
     """
 
-    def client_for(host: str, **_: Any) -> FakeBar:
+    def client_for(host: str, **kwargs: Any) -> FakeBar:
         bar = bars.get(str(host))
         if bar is None:
             # Nothing at that address: the same failure a wrong or stale
             # address gives.
             bar = FakeBar(host=str(host), http_api=False)
+        bar.token = kwargs.get("token")
         return bar
 
     def client_from_device(self: BusyBarDevice, affinity=None, **kwargs: Any) -> Any:
         address = self.get_address(affinity)
-        return None if address is None else client_for(address)
+        return None if address is None else client_for(address, **kwargs)
 
     with (
         patch("custom_components.busy.AsyncBusyBar", side_effect=client_for),
