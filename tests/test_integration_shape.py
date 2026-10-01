@@ -334,3 +334,59 @@ def test_the_brand_images_are_the_sizes_brands_asks_for() -> None:
         assert 128 <= min(size(name)) <= 256, name
     for name in ("logo@2x.png", "dark_logo@2x.png"):
         assert 256 <= min(size(name)) <= 512, name
+
+
+def test_the_card_waits_for_the_interface_before_it_registers() -> None:
+    """
+    A card defined the moment its file loads can run before Home Assistant's
+    interface has started, and was reported to be named in the card picker and
+    missing once added. It is registered when the interface exists - and
+    anyway after a timeout, for a page that never defines one.
+
+    Checked on the source: nothing at the top level of the file may define the
+    element or announce the card, since that is exactly the early path.
+    """
+    source = (COMPONENT / "www/busy-bar-card.js").read_text()
+
+    assert 'whenDefined("home-assistant")' in source
+    assert "setTimeout" in source, (
+        "a frontend that never defines it must not strand the card"
+    )
+    top_level = [line for line in source.splitlines() if line and not line[0].isspace()]
+    assert not [
+        line
+        for line in top_level
+        if line.startswith(("customElements.define", "window.customElements.define"))
+        or "customCards.push" in line
+    ], "defined or announced at load, before the interface"
+
+
+def test_the_card_registers_only_once_however_often_the_file_loads() -> None:
+    """
+    The file can be loaded twice - a cached copy and a fresh one - and
+    defining an element twice throws.
+    """
+    source = (COMPONENT / "www/busy-bar-card.js").read_text()
+
+    assert 'if (!window.customElements.get("busy-bar-card"))' in source
+    assert "window.customCards.some(" in source
+
+
+def test_the_cards_version_moves_exactly_when_the_file_does(tmp_path: Path) -> None:
+    """
+    A browser serves the card it first downloaded until the address changes.
+    A version number someone must remember to raise gets forgotten, and then
+    everyone keeps the old card; a hash of the file cannot be forgotten.
+    """
+    from custom_components.busy import card_version
+
+    card = tmp_path / "card.js"
+    card.write_text("one")
+    first = card_version(card)
+    assert card_version(card) == first, "stable while the file is"
+
+    card.write_text("two")
+    assert card_version(card) != first
+
+    assert re.fullmatch(r"[0-9a-f]{10}", first)
+    assert card_version() == card_version(COMPONENT / "www/busy-bar-card.js")
