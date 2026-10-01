@@ -14,12 +14,9 @@ rules:
   # everything else arrives pushed.
   appropriate-polling: done
 
-  brands:
-    status: todo
-    comment: >-
-      The images are cut and waiting in brand/ - see its README. They
-      have to be merged into home-assistant/brands, which is a separate
-      repository and a separate pull request.
+  # Shipped in brand/ inside the integration, which Home Assistant 2026.3
+  # reads ahead of the brands repository (closed to new custom integrations).
+  brands: done
 
   # coordinator.py holds the coordinator, entity.py the base entity.
   common-modules: done

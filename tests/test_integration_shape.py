@@ -318,13 +318,13 @@ def test_the_quality_scale_names_every_rule_of_its_tier() -> None:
 
 def test_the_brand_images_are_the_sizes_brands_asks_for() -> None:
     """
-    home-assistant/brands rejects anything else: icons are square 256 and
+    Home Assistant expects these sizes: icons are square 256 and
     512, and a logo's shortest side is 128-256 normal, 256-512 hDPI.
     """
     import struct
 
     def size(name: str) -> tuple[int, int]:
-        data = (COMPONENT.parent.parent / "brand" / name).read_bytes()
+        data = (COMPONENT / "brand" / name).read_bytes()
         assert data[:8] == b"\x89PNG\r\n\x1a\n", name
         return struct.unpack(">II", data[16:24])
 
