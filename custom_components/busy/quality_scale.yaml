@@ -14,24 +14,19 @@ rules:
   # everything else arrives pushed.
   appropriate-polling: done
 
-  brands:
-    status: todo
-    comment: >-
-      The images are cut and waiting in brand/ - see its README. They
-      have to be merged into home-assistant/brands, which is a separate
-      repository and a separate pull request.
+  # Shipped in brand/ inside the integration, which Home Assistant 2026.3
+  # reads ahead of the brands repository (closed to new custom integrations).
+  brands: done
 
   # coordinator.py holds the coordinator, entity.py the base entity.
   common-modules: done
 
   config-flow: done
 
-  config-flow-test-coverage:
-    status: todo
-    comment: >-
-      91% today - discovery, the picker, a bar already added, a bar with
-      its HTTP API off. The eight uncovered lines are the error paths of
-      minting a token.
+  # Every line of config_flow.py is run by a test: discovery, the picker,
+  # a bar already added, a bar with its HTTP API off, and the password
+  # asked for when a bar will not mint a token without one.
+  config-flow-test-coverage: done
 
   # busylib is on PyPI, built from a public repository by its own CI.
   dependency-transparency: done

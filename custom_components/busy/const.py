@@ -7,22 +7,3 @@ DOMAIN = "busy"
 # identify the integration by application_name and User-Agent rather than
 # have the firmware report a connection itself.
 APPLICATION_NAME = "home_assistant"
-
-DEFAULT_DURATION = 10
-MAX_DURATION = 120
-
-SERVICE_NOTIFY = "notify"
-SERVICE_START_BUSY = "start_busy"
-SERVICE_START_CUSTOM = "start_custom"
-SERVICE_START_QUICK_INFINITE = "start_quick_infinite"
-SERVICE_START_QUICK_SIMPLE = "start_quick_simple"
-SERVICE_START_QUICK_INTERVAL = "start_quick_interval"
-SERVICE_STOP_SESSION = "stop_session"
-SERVICE_PAUSE_SESSION = "pause_session"
-SERVICE_RESUME_SESSION = "resume_session"
-SERVICE_NEXT_PHASE = "next_phase"
-SERVICE_SET_THEME = "set_theme"
-SERVICE_PLAY_SOUND = "play_sound"
-SERVICE_CLEAR = "clear"
-SERVICE_DRAW = "draw"
-SERVICE_LIST_ASSETS = "list_assets"

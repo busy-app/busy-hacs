@@ -176,7 +176,7 @@ async def test_one_bar_missing_does_not_take_the_other_down(
 
 
 async def test_the_screen_does_not_write_a_row_for_every_frame(
-    hass, prod_entry, bars, busy_network
+    hass, bar, prod_entry
 ) -> None:
     """
     The screen was an image entity, whose state is when its picture last
@@ -185,11 +185,6 @@ async def test_the_screen_does_not_write_a_row_for_every_frame(
     recorder's database. A camera's state does not move: frames are
     handed out when something asks for one.
     """
-    bars[PROD_HOST] = FakeBar()
-    prod_entry.add_to_hass(hass)
-    assert await hass.config_entries.async_setup(prod_entry.entry_id)
-    await hass.async_block_till_done()
-
     screen = next(
         state for state in hass.states.async_all() if state.domain == "camera"
     )
@@ -205,7 +200,7 @@ async def test_the_screen_does_not_write_a_row_for_every_frame(
 
 
 async def test_the_switch_says_where_it_is_and_moves_when_told(
-    hass, prod_entry, bars, busy_network
+    hass, bar, prod_entry
 ) -> None:
     """
     Five buttons could move the switch but never say where it stood, so
@@ -213,11 +208,6 @@ async def test_the_switch_says_where_it_is_and_moves_when_told(
     bar reports the position only when it moves, so until it does the
     answer is unknown rather than a guess.
     """
-    bars[PROD_HOST] = FakeBar()
-    prod_entry.add_to_hass(hass)
-    assert await hass.config_entries.async_setup(prod_entry.entry_id)
-    await hass.async_block_till_done()
-
     switch = next(
         state.entity_id
         for state in hass.states.async_all()
@@ -247,7 +237,7 @@ async def test_the_switch_says_where_it_is_and_moves_when_told(
         {"entity_id": switch, "option": "apps"},
         blocking=True,
     )
-    assert bars[PROD_HOST].inputs[-1].name == "APPS"
+    assert bar.inputs[-1].name == "APPS"
 
     assert not [
         state

@@ -3,38 +3,29 @@
 from __future__ import annotations
 
 from busylib import types
-from busylib.exceptions import BusyBarError
 from busylib.features import timer
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError, PlatformNotReady
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
 from .entity import PARALLEL_UPDATES, BusyBarEntity
+from .errors import reporting
 
 __all__ = ["PARALLEL_UPDATES", "async_setup_entry"]
 
-# The three buttons on the bar. Pressing one here is indistinguishable from
-# pressing it on the device: the firmware puts the same event on its state
-# stream either way, confirmed against hardware.
-_BUTTONS = (
-    ("ok", types.InputKey.OK),
-    ("back", types.InputKey.BACK),
-    ("start", types.InputKey.START),
-)
-
-
-# Scrolling, which is how the bar is navigated. The keys are called up and
-# down in the HTTP API, but what a person sees is the selection moving
-# sideways - the firmware's menus map up to "focus the next item" and down
-# to the previous - so they are named for what they do. Worth having from
-# here for the same reason the buttons are: someone who cannot reach the
-# bar can still drive it.
-_SCROLL = (
-    ("scroll_right", types.InputKey.UP),
-    ("scroll_left", types.InputKey.DOWN),
-)
+# The three buttons on the bar - pressing one here is indistinguishable from
+# pressing it on the device, the firmware puts the same event on its stream -
+# and the scrolling that navigates it. The HTTP API calls the keys up and
+# down, but the menus map them to the selection moving sideways, so they are
+# named for what a person sees.
+_KEYS = {
+    "ok": types.InputKey.OK,
+    "back": types.InputKey.BACK,
+    "start": types.InputKey.START,
+    "scroll_right": types.InputKey.UP,
+    "scroll_left": types.InputKey.DOWN,
+}
 
 
 async def async_setup_entry(
@@ -43,98 +34,48 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     coordinator = config_entry.runtime_data
-    try:
-        name = (await coordinator.client.name()).name
-    except BusyBarError as err:
-        raise PlatformNotReady(
-            f"BUSY Bar {coordinator.device_id} is unreachable"
-        ) from err
-
     async_add_entities(
         [
             *(
-                BusyBarButton(coordinator, name, key, input_key)
-                for key, input_key in (*_BUTTONS, *_SCROLL)
+                BusyBarButton(coordinator, key, input_key)
+                for key, input_key in _KEYS.items()
             ),
-            NextPhaseButton(coordinator, name),
+            NextPhaseButton(coordinator),
         ]
     )
 
 
 class BusyBarButton(BusyBarEntity, ButtonEntity):
     """
-    One of the bar's buttons, or a way to move its switch.
+    One of the bar's buttons, or a way to move its selection.
 
-    Hidden from dashboards by default. These are a remote control: thirteen
-    of them, useful in an automation and when someone cannot reach the bar,
-    and noise in the card for a room. They are created, they work, and they
-    are one click from being shown - what they are not is on the wall by
-    default.
-
-    Useful for the same reasons the physical button is: dismissing what is
-    on screen, or starting whatever the current profile starts, from an
-    automation rather than by reaching for the bar.
+    Hidden from dashboards by default: a remote control is useful in an
+    automation and when someone cannot reach the bar, and noise in the card
+    for a room. One click from being shown.
     """
 
     _attr_entity_registry_visible_default = False
 
     def __init__(
-        self,
-        coordinator: BusyBarCoordinator,
-        name: str,
-        key: str,
-        input_key: types.InputKey,
+        self, coordinator: BusyBarCoordinator, key: str, input_key: types.InputKey
     ) -> None:
-        super().__init__(coordinator, name, key)
+        super().__init__(coordinator, key)
         self._input_key = input_key
 
     async def async_press(self) -> None:
-        try:
+        with reporting("input_failed"):
             await self.coordinator.client.input(self._input_key)
-        except BusyBarError as err:
-            raise HomeAssistantError(
-                translation_domain="busy",
-                translation_key="input_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
 
 
-class _SessionButton(BusyBarEntity, ButtonEntity):
+class NextPhaseButton(BusyBarEntity, ButtonEntity):
     """
-    Base for the buttons that change a running session.
-
-    One-way and takes no options, which is what makes it a button rather
-    than an action - the actions with fields are still there for an
-    automation that needs them.
+    Move an interval session on to its next phase - cutting a break short,
+    or starting one early. One-way and optionless, which is what makes it a
+    button; the action with fields is still there for automations.
     """
 
-    async def _change(self, work) -> None:
-        try:
-            await work(self.coordinator.client)
-        except timer.TimerNotRunningError as err:
-            raise HomeAssistantError(
-                translation_domain="busy",
-                translation_key="timer_not_running",
-                translation_placeholders={"error": str(err)},
-            ) from err
-        except BusyBarError as err:
-            raise HomeAssistantError(
-                translation_domain="busy",
-                translation_key="timer_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
-        await self.coordinator.async_request_refresh()
-
-
-class NextPhaseButton(_SessionButton):
-    """
-    Move an interval session on to its next phase.
-
-    The obvious use is cutting a break short, or starting one early.
-    """
-
-    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "session_next_phase")
+    def __init__(self, coordinator: BusyBarCoordinator) -> None:
+        super().__init__(coordinator, "session_next_phase")
 
     async def async_press(self) -> None:
-        await self._change(timer.next_phase)
+        await self._write(timer.next_phase(self.coordinator.client), "timer_failed")

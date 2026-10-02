@@ -191,3 +191,24 @@ This integration follows standard integration removal. Deleting it leaves
 one thing on the bar, which is harmless and can be removed from the bar
 itself: the access token Home Assistant was given, which stays until it is
 revoked on the bar.
+
+## Development
+
+```text
+custom_components/busy/
+  __init__.py       setup and unload of one bar
+  connection.py     reaching a bar: the remembered address, else a scan
+  coordinator.py    one bar's state, from the stream and a slow poll
+  install.py        following a firmware install across its quiet gaps
+  quick.py          quick sessions, kept in Home Assistant
+  errors.py         library errors -> translated Home Assistant errors
+  entity.py         base entity and device info
+  <platform>.py     sensor, switch, number, select, button, ... one file each
+  services/         actions: schemas.py, targets.py (which bars), actions.py
+  frontend.py       serving the dashboard card in www/
+```
+
+Entities read the coordinator and never talk to the bar except to change it;
+actions and entities share one way of starting a session (`quick.py`) and one
+way of reporting a refusal (`errors.py`). Tests run without a bar against
+`tests/conftest.py`'s fake one: `uv run pytest`.

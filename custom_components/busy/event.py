@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from busylib.exceptions import BusyBarError
 from busylib.features import ButtonEvent, EncoderEvent, InputEvent
 from homeassistant.components.event import EventDeviceClass, EventEntity
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
@@ -38,20 +36,10 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     coordinator = config_entry.runtime_data
-    try:
-        name = (await coordinator.client.name()).name
-    except BusyBarError as err:
-        raise PlatformNotReady(
-            f"BUSY Bar {coordinator.device_id} is unreachable"
-        ) from err
-
     async_add_entities(
         [
-            *(
-                BusyBarButtonEvent(coordinator, name, key, button)
-                for key, button in _BUTTONS
-            ),
-            BusyBarScrollEvent(coordinator, name),
+            *(BusyBarButtonEvent(coordinator, key, button) for key, button in _BUTTONS),
+            BusyBarScrollEvent(coordinator),
         ]
     )
 
@@ -95,10 +83,8 @@ class BusyBarButtonEvent(_BusyBarInputEvent):
     _attr_device_class = EventDeviceClass.BUTTON
     _attr_event_types = _BUTTON_EVENTS
 
-    def __init__(
-        self, coordinator: BusyBarCoordinator, name: str, key: str, button: str
-    ) -> None:
-        super().__init__(coordinator, name, key)
+    def __init__(self, coordinator: BusyBarCoordinator, key: str, button: str) -> None:
+        super().__init__(coordinator, key)
         self._button = button
 
     @callback
@@ -121,8 +107,8 @@ class BusyBarScrollEvent(_BusyBarInputEvent):
 
     _attr_event_types = _SCROLL_EVENTS
 
-    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "scroll")
+    def __init__(self, coordinator: BusyBarCoordinator) -> None:
+        super().__init__(coordinator, "scroll")
 
     @callback
     def _arrived(self, event: InputEvent) -> None:
