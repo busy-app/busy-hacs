@@ -71,7 +71,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
     "find_devices" --x-> "select_device" --x-> "mint_token" <---+
      |                                          |       ^
      v                                          |       | password needed
-    "no_devices"                                v       |
+    abort (nothing found)                       v       |
                                               done      +--- (retry form)
 
     A zeroconf discovery already names one bar and carries its address, so
@@ -90,7 +90,6 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        _LOGGER.debug('step "user" -> "find_devices"')
         return await self.async_step_find_devices()
 
     async def async_step_zeroconf(self, discovery_info: Any) -> ConfigFlowResult:
@@ -155,7 +154,6 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is None:
-            _LOGGER.debug('step "zeroconf_confirm" (no input)')
             return self.async_show_form(
                 step_id="zeroconf_confirm",
                 description_placeholders=self.context["title_placeholders"],
@@ -165,47 +163,28 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         # to, so fall back to scanning rather than failing on a client that
         # has no address to build from.
         if self.device.get_address() is None:
-            _LOGGER.debug(
-                'step "zeroconf_confirm" -> "find_devices" (no address announced)'
-            )
             return await self.async_step_find_devices()
 
-        _LOGGER.debug('step "zeroconf_confirm" -> "mint_token"')
         return await self.async_step_mint_token()
 
     #
     #            +----------------+
     # "user" --> | "find_devices" | --x---> "select_device"
     #            +----------------+    \
-    #                                   --> "no_devices"
+    #                                   --> abort (nothing found)
     #
     async def async_step_find_devices(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        _LOGGER.debug('step "find_devices": discovering devices')
         self.devices = await async_discover_busy(self.hass)
 
         if self.devices:
-            _LOGGER.debug('step "find_devices": %d device(s) found', len(self.devices))
-            _LOGGER.debug('step "find_devices" -> "select_device"')
             # Always show the picker, even for a single device: silently
             # locking onto whichever one the scan happened to find first
             # gives the user no chance to notice a wrong or unexpected
             # device (e.g. a neighbor's bar, or the "other" one when more
             # than one exists but only one answered in time).
             return await self.async_step_select_device()
-        else:
-            _LOGGER.debug('step "find_devices" -> "no_devices"')
-            return await self.async_step_no_devices()
-
-    #
-    #                    +--------------+
-    # "find_devices" --> | "no_devices" | --> abort
-    #                    +--------------+
-    #
-    async def async_step_no_devices(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
         return self.async_abort(reason="no_devices_found")
 
     #
@@ -228,13 +207,11 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
         if not user_input:
-            _LOGGER.debug('step "select_device" (no input)')
             return self.async_show_form(
                 step_id="select_device",
                 data_schema=SCHEMA,
             )
 
-        _LOGGER.debug('step "select_device" (with input)')
         dev_name = user_input["device"]
         device = next(dev for dev in self.devices if dev.name == dev_name)
         self.device = device
@@ -254,7 +231,6 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         await self.async_set_unique_id(device.device_id)
         self._abort_if_unique_id_configured()
 
-        _LOGGER.debug('step "select_device" -> "mint_token"')
         return await self.async_step_mint_token()
 
     #
@@ -277,12 +253,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
             }
         )
 
-        password = None
-        if user_input:
-            _LOGGER.debug('step "mint_token" (with input)')
-            password = user_input["password"]
-        else:
-            _LOGGER.debug('step "mint_token" (without input)')
+        password = user_input["password"] if user_input else None
 
         client = await self.hass.async_add_executor_job(
             partial(
@@ -303,12 +274,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
         try:
-            _LOGGER.debug('step "mint_token": minting token')
             token_info = await client.access_token_mint(self.hass.config.location_name)
-            _LOGGER.debug(
-                'step "mint_token": acquired token with short_id="%s"',
-                token_info.short_id,
-            )
             token = token_info.token
         except BusyBarRequestError:
             # The bar answered mDNS but not HTTP. Almost always this is a
@@ -317,21 +283,14 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
             # nothing can talk to it. Asking for a key here is worse than
             # useless - no key exists, and the person is left trying
             # passwords against a door that is not there.
-            _LOGGER.debug(
-                'step "mint_token": %s answered discovery but not HTTP',
-                self.device.device_id,
-            )
             return self.async_abort(reason="http_api_disabled")
         except BusyBarError:
-            _LOGGER.debug(
-                'step "mint_token": minting without a password failed, asking for one'
-            )
             return self.async_show_form(
                 step_id="mint_token",
                 data_schema=SCHEMA,
             )
 
-        self.entry_data = {
+        entry_data = {
             CONF_DEVICE_ID: self.device.device_id,
             CONF_TOKEN: token,
             # Remembering the address is what lets setup skip the ten-second
@@ -347,5 +306,5 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_create_entry(
             title=self.device.name,
-            data=self.entry_data,
+            data=entry_data,
         )

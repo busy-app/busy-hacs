@@ -18,9 +18,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from busylib import types
 from busylib.devices import BusyBarAddress, BusyBarAddressAffinity, BusyBarDevice
-from busylib.exceptions import BusyBarRequestError
+from busylib.exceptions import BusyBarError, BusyBarRequestError
 from busylib.features import DeviceSnapshot
 from homeassistant.const import CONF_DEVICE_ID, CONF_HOST, CONF_TOKEN
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -84,12 +86,17 @@ class FakeBar:
         host: str = PROD_HOST,
         *,
         http_api: bool = True,
+        password: str | None = None,
     ) -> None:
         self.device_id = device_id
         self.bar_name = name
         self.host = host
         self.base_url = f"http://{host}"
         self.http_api = http_api
+        # A bar that wants a password before it mints a token, and the
+        # one the client was built with.
+        self.password = password
+        self.token: str | None = None
         self.closed = False
         self.inputs: list[Any] = []
         self.drawn: list[Any] = []
@@ -106,6 +113,8 @@ class FakeBar:
 
     async def access_token_mint(self, name: str) -> Any:
         self._refuse_if_off()
+        if self.password is not None and self.token != self.password:
+            raise BusyBarError("a password is needed")
         return MagicMock(token=f"token-for-{self.device_id}", short_id="abcd")
 
     async def access(self) -> Any:
@@ -292,23 +301,24 @@ def busy_network(
     paths agree.
     """
 
-    def client_for(host: str, **_: Any) -> FakeBar:
+    def client_for(host: str, **kwargs: Any) -> FakeBar:
         bar = bars.get(str(host))
         if bar is None:
             # Nothing at that address: the same failure a wrong or stale
             # address gives.
             bar = FakeBar(host=str(host), http_api=False)
+        bar.token = kwargs.get("token")
         return bar
 
     def client_from_device(self: BusyBarDevice, affinity=None, **kwargs: Any) -> Any:
         address = self.get_address(affinity)
-        return None if address is None else client_for(address)
+        return None if address is None else client_for(address, **kwargs)
 
     with (
-        patch("custom_components.busy.AsyncBusyBar", side_effect=client_for),
+        patch("custom_components.busy.connection.AsyncBusyBar", side_effect=client_for),
         patch.object(BusyBarDevice, "to_async_client", client_from_device),
         patch(
-            "custom_components.busy.async_discover_busy",
+            "custom_components.busy.connection.async_discover_busy",
             AsyncMock(side_effect=lambda hass: list(discovered)),
         ),
         patch(
@@ -364,3 +374,56 @@ def prod_entry() -> MockConfigEntry:
             CONF_HOST: PROD_HOST,
         },
     )
+
+
+@pytest.fixture
+async def bar(hass, prod_entry, bars, busy_network, quiet_snapshot) -> FakeBar:
+    """
+    The bar already added and set up, with everything the integration makes
+    for it: what most tests want to drive.
+    """
+    bars[PROD_HOST] = FakeBar()
+    prod_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+    return bars[PROD_HOST]
+
+
+@pytest.fixture
+def device_id(hass, bar, prod_entry) -> str:
+    """The Home Assistant device id of the bar, which is what a target takes."""
+    registry = dr.async_get(hass)
+    return dr.async_entries_for_config_entry(registry, prod_entry.entry_id)[0].id
+
+
+@pytest.fixture
+def act(hass, device_id):
+    """
+    Call an action of the integration on the bar, as an automation would.
+    """
+
+    async def call(action: str, *, response: bool = False, **data: Any) -> Any:
+        return await hass.services.async_call(
+            DOMAIN,
+            action,
+            {"device_id": device_id, **data},
+            blocking=True,
+            return_response=response,
+        )
+
+    return call
+
+
+@pytest.fixture
+def entity_id(hass, bar):
+    """The entity id of the bar's entity with a translation key (`switch`...)."""
+
+    def find(domain: str, key: str) -> str:
+        entry = er.async_get(hass)
+        return next(
+            e.entity_id
+            for e in entry.entities.values()
+            if e.domain == domain and e.translation_key == key
+        )
+
+    return find

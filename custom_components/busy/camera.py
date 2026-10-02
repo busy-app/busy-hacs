@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from busylib.exceptions import BusyBarError
 from homeassistant.components.camera import Camera
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
@@ -24,15 +22,7 @@ async def async_setup_entry(
     config_entry: BusyBarConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    coordinator = config_entry.runtime_data
-    try:
-        name = (await coordinator.client.name()).name
-    except BusyBarError as err:
-        raise PlatformNotReady(
-            f"BUSY Bar {coordinator.device_id} is unreachable"
-        ) from err
-
-    async_add_entities([BusyBarScreen(coordinator, name)])
+    async_add_entities([BusyBarScreen(config_entry.runtime_data)])
 
 
 class BusyBarScreen(BusyBarEntity, Camera):
@@ -67,8 +57,8 @@ class BusyBarScreen(BusyBarEntity, Camera):
     # second and a 72x16 panel says all it has to say in one.
     _attr_frame_interval = 1.0
 
-    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        BusyBarEntity.__init__(self, coordinator, name, "screen")
+    def __init__(self, coordinator: BusyBarCoordinator) -> None:
+        BusyBarEntity.__init__(self, coordinator, "screen")
         Camera.__init__(self)
         # Set after the base class, which assigns the default to the
         # instance - so the usual _attr_ class attribute never wins. It
@@ -87,8 +77,5 @@ class BusyBarScreen(BusyBarEntity, Camera):
         is what made it mush in the first place, so the picture is
         returned at the size the panel deserves and the browser fits it.
         """
-        data = self.coordinator.data
-        frame = None if data is None else data.snapshot.screen_front
-        if frame is None:
-            return None
-        return frame.scale(_SCALE).to_png()
+        frame = self.data.snapshot.screen_front
+        return None if frame is None else frame.scale(_SCALE).to_png()

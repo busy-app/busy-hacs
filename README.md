@@ -1,91 +1,214 @@
-# BUSY Bar for Home Assistant
+# BUSY Bar
 
-Draft integration of the BUSY Bar into Home Assistant.
+The [BUSY Bar](https://busy.app) is a desk device with a 72x16 LED panel on
+each side, a five-position switch, three buttons and a wheel. This
+integration talks to it over your own network, through the bar's HTTP API.
+There is no cloud account and nothing leaves the house.
 
-Discovery works :P
+## Use cases
 
-## What a bar can show and play
+- Show what you are doing to the room: start a focus session from an
+  automation, or write "ON AIR" across the back panel while the camera is on.
+- Notify without a screen: laundry finished, doorbell pressed, the build
+  broke - an icon, two lines and a sound, gone after a few seconds.
+- Drive automations from the bar: its buttons, wheel and switch are entities,
+  so moving the switch to CUSTOM can mute the speakers and dim the lights.
+- Watch the panel from anywhere: the bar's display is a camera entity.
 
-Notifications, icons, themes and sounds come from the bar itself - it ships
-with a set of pictures, animations, sounds and themes, and nothing has to be
-uploaded to use them. Every one of them, with pictures you can actually look
-at and sounds you can play, is in
+## Prerequisites
+
+The bar must be on the same network as Home Assistant, set up through the
+BUSY app, and its HTTP API has to be on.
+
+The API switch is on the bar itself, under **SETTINGS > Wi-Fi**, where its
+access key is also shown. A bar announces itself on the network whether the
+API is on or off, so one that appears in Home Assistant and then refuses to
+be added is almost always a bar with the API still off.
+
+## Installation
+
+The integration is not part of Home Assistant and is installed through
+[HACS](https://hacs.xyz) as a custom repository:
+
+1. **HACS** > the three-dot menu > **Custom repositories**.
+2. Add `https://github.com/busy-app/busy-hacs`, category **Integration**.
+3. Download **BUSY Bar**, then restart Home Assistant.
+
+A bar on the network is then found by itself: **Settings > Devices &
+services** shows it under **Discovered**. A bar that is not found can be
+added with **Add integration > BUSY Bar**.
+
+## Configuration
+
+Adding a bar asks for one thing, and only when the bar wants it:
+
+- **Wi-Fi access key** - the key shown on the bar under **SETTINGS > Wi-Fi**.
+  Home Assistant exchanges it once for a token of its own, which is what it
+  uses from then on.
+
+The address is not asked for. The bar is found by mDNS, and a bar that moves
+to another address - a new DHCP lease, a move between Wi-Fi and USB - is
+followed without being reconfigured.
+
+## Supported functionality
+
+### Entities
+
+| Platform | Entities |
+| --- | --- |
+| Camera | The front panel, live |
+| Select | Switch position, and a theme for each kind of quick session |
+| Switch | BUSY and CUSTOM sessions, the three quick sessions, pause, mute, automatic brightness |
+| Sensor | Session type, phase, when the phase ends, theme, battery, Wi-Fi network and signal, IP address, Bluetooth, time zone, API version, uptime, USB voltage |
+| Binary sensor | Charging, automatic updates, session running |
+| Number | Brightness, volume, and the lengths a quick session uses |
+| Button | OK, back, start, the wheel both ways, skip to the next phase |
+| Event | Each button and the wheel, as they are pressed on the bar |
+| Update | The bar's firmware, with progress while it installs |
+
+### Actions
+
+| Action | What it does |
+| --- | --- |
+| `busy.notify` | Two lines, an icon, a sound and colours, for a few seconds |
+| `busy.draw` | One piece of text placed exactly, on either display |
+| `busy.clear` | Remove what this integration drew |
+| `busy.start_busy`, `busy.start_custom` | Start what the bar's own cards describe |
+| `busy.start_quick_infinite`, `busy.start_quick_simple`, `busy.start_quick_interval` | Start a session with settings given here, leaving both cards alone |
+| `busy.pause_session`, `busy.resume_session`, `busy.stop_session`, `busy.next_phase` | Steer a running session |
+| `busy.set_theme` | Change how the bar looks, for this session or for a card |
+| `busy.play_sound` | Play any sound the bar has |
+| `busy.list_assets` | Answer with every icon, animation, sound, font and theme this bar holds |
+
+A notification:
+
+```yaml
+actions:
+  - action: busy.notify
+    target:
+      entity_id: camera.busy_bar_screen
+    data:
+      line_1: Laundry
+      line_2: is done
+      line_1_font: bold
+      line_2_font: tiny
+      icon: check
+      sound: event
+      duration: 15
+```
+
+Something written across the back panel until an automation takes it down:
+
+```yaml
+actions:
+  - action: busy.draw
+    target:
+      entity_id: camera.busy_bar_screen
+    data:
+      text: ON AIR
+      display: back
+      font: bold
+      color: [255, 0, 0]
+      align: center
+      duration: 0
+```
+
+### Icons, sounds and themes
+
+These are files on the bar, so no list written down here is true of every
+bar: a firmware release adds some.
+`busy.list_assets` answers for the bar in front of you, and the whole shipped
+set is pictured in
 [busylib's stock assets guide](https://busy-app.github.io/busylib-py/guides/stock-assets/).
 
-Which of them a **particular** bar has is a different question - a release
-adds some, an owner uploads others - and that one the bar answers itself:
+Eight icons have short names - `check`, `error`, `info`, `clock`,
+`hourglass`, `low_battery`, `start`, `setup`. The rest are the Draw Tool's
+set, under the names the Draw Tool shows, so a picture of any of them is one
+tap away in the BUSY app. Those are 16 pixels wide against the built-in 8,
+which leaves 56 of the panel's 72 for the text beside them.
+
+Only the firmware's own icons and sounds can be named here. Files uploaded
+to the bar by hand or by another application are not offered.
+
+### Dashboard card
+
+The integration ships a card with the panel and every control on it. Add it
+with **Add card > Custom: BUSY Bar**, or in YAML:
 
 ```yaml
-actions:
-  - action: busy.list_assets
-    target:
-      device_id: <your bar>
-    response_variable: assets
+type: custom:busy-bar-card
+device_id: <your bar>
 ```
 
-Run it from **Developer tools → Actions** and it answers with every icon,
-animation, sound, font and theme that bar holds, the firmware's own and the
-uploaded ones apart. Those are the names the `icon`, `sound` and `theme`
-fields take.
+## Data updates
 
-## Icons for the notify action
+The bar pushes. Sessions, button presses, the switch and the panel's frames
+arrive on a state stream the integration keeps open, so what a person does on
+the bar shows up at once. A poll every 30 seconds covers the few settings
+that are not on that stream, and drops to every 5 seconds while firmware is
+installing.
 
-The **Show a notification** action draws an icon at the left edge. Eight have
-short names - `check`, `error`, `info`, `clock`, `hourglass`, `low_battery`,
-`start`, `setup` - and the rest are the Draw Tool's set, under exactly the
-names the Draw Tool shows, so a picture of any of them is one tap away in the
-BUSY app.
+## Known limitations
 
-Anything else on the bar works too: the dropdown accepts a typed name, and a
-name that bar does not have is refused with the list it does have. That
-matters because icons are files - an owner can upload their own or delete
-what they do not want - so no list written down here is true of every bar.
+- **A running session owns the screen.** While a timer runs, the firmware
+  refuses every drawing whatever priority it asks for, so notifications
+  cannot be shown until the session ends.
+- **The switch reports only when it moves.** Nothing answers "where is it
+  now", so the switch position reads as unknown until the first time somebody
+  moves it. The last known position is remembered across restarts.
+- **Text is drawn in the bar's own bitmap fonts.** Cyrillic is there in every
+  font except `tiny`; emoji are dropped, since a colour emoji has no meaning
+  in a one-bit font. Use an icon instead.
+- **Mute is volume zero underneath**, because the firmware has no mute of its
+  own. The level to come back to is remembered by Home Assistant rather than
+  by the bar, so it does not survive a restart, and unmuting a bar that was
+  already silent at startup picks a middle volume rather than guessing.
 
-The Draw Tool icons are 16x16, twice the width of most of the built-in ones.
-The layout shifts the text accordingly, which leaves 56 of the panel's 72
-pixels for it.
+## Troubleshooting
 
-| Draw Tool icons | | | |
-| --- | --- | --- | --- |
-| `dt_apple_green` | `dt_apple_red` | `dt_apple_yellow` | `dt_available` |
-| `dt_basketball` | `dt_book` | `dt_burger` | `dt_chicken` |
-| `dt_coctail` | `dt_coffee` | `dt_crescent_moon_1` | `dt_crescent_moon_2` |
-| `dt_dialog` | `dt_dialog_no` | `dt_dialog_yes` | `dt_drink_1` |
-| `dt_drink_2` | `dt_emoji_angry` | `dt_emoji_awkward` | `dt_emoji_cry` |
-| `dt_emoji_dead` | `dt_emoji_evil` | `dt_emoji_expressionless` | `dt_emoji_eyes` |
-| `dt_emoji_fatigue` | `dt_emoji_glasses` | `dt_emoji_grinning` | `dt_emoji_happy` |
-| `dt_emoji_heart_eyes` | `dt_emoji_laught` | `dt_emoji_melted` | `dt_emoji_panic` |
-| `dt_emoji_relief` | `dt_emoji_sad` | `dt_emoji_sleep` | `dt_emoji_surprised` |
-| `dt_emoji_sweat_smile` | `dt_emoji_tounge` | `dt_football` | `dt_heart_blue` |
-| `dt_heart_green` | `dt_heart_light_blue` | `dt_heart_orange` | `dt_heart_pink` |
-| `dt_heart_red` | `dt_heart_violet` | `dt_heart_yellow` | `dt_home` |
-| `dt_leaf` | `dt_moon_1` | `dt_moon_2` | `dt_no` |
-| `dt_pie` | `dt_pizza` | `dt_pizza_margarita` | `dt_pizza_peperoni` |
-| `dt_sparkls_1` | `dt_sparkls_2` | `dt_study` | `dt_tea` |
-| `dt_tennis` | `dt_toast` | `dt_tomato` | `dt_unavailable` |
-| `dt_work` | `dt_yes` |
+### The bar is found but cannot be added
 
-## Volume mute, and why it is not the volume slider set to zero
+Its HTTP API is off. A bar announces itself either way, which is why it
+appears and then fails. Turn the API on under **SETTINGS > Wi-Fi** on the bar
+and add it again.
 
-Setting the volume to zero silences the bar and forgets how loud it was.
-Mute remembers: turn it on and the bar goes quiet, turn it off and the
-volume it had comes back. That is the difference worth an entity - an
-automation can silence the bar for a call, or for the night, without
-having to read the volume first and put it back afterwards:
+### The bar is not found at all
 
-```yaml
-actions:
-  - action: switch.turn_on
-    target:
-      entity_id: switch.busy_bar_volume_mute
-  # ... the meeting happens ...
-  - action: switch.turn_off
-    target:
-      entity_id: switch.busy_bar_volume_mute
+It is on another network or another subnet - a guest Wi-Fi, or a Home
+Assistant in a container with its own network. Check that
+`http://<the bar's address>/api/status` answers from the machine running
+Home Assistant, and add the bar by address if mDNS does not reach it.
+
+### A notification does not appear
+
+Either a session is running, which refuses every drawing, or another
+application is holding the screen. The error says which. For the second case,
+**Show it over other drawings** puts the notification above it.
+
+## Removing the integration
+
+This integration follows standard integration removal. Deleting it leaves
+one thing on the bar, which is harmless and can be removed from the bar
+itself: the access token Home Assistant was given, which stays until it is
+revoked on the bar.
+
+## Development
+
+```text
+custom_components/busy/
+  __init__.py       setup and unload of one bar
+  connection.py     reaching a bar: the remembered address, else a scan
+  coordinator.py    one bar's state, from the stream and a slow poll
+  install.py        following a firmware install across its quiet gaps
+  quick.py          quick sessions, kept in Home Assistant
+  errors.py         library errors -> translated Home Assistant errors
+  entity.py         base entity and device info
+  <platform>.py     sensor, switch, number, select, button, ... one file each
+  services/         actions: schemas.py, targets.py (which bars), actions.py
+  frontend.py       serving the dashboard card in www/
 ```
 
-The firmware has no mute of its own, so this is volume zero underneath.
-Two consequences follow from that and are worth knowing: the remembered
-level lives in Home Assistant, so it does not survive a restart, and a bar
-that was already silent when Home Assistant started has nothing to
-restore - unmuting then picks a middle volume rather than guessing loud.
+Entities read the coordinator and never talk to the bar except to change it;
+actions and entities share one way of starting a session (`quick.py`) and one
+way of reporting a refusal (`errors.py`). Tests run without a bar against
+`tests/conftest.py`'s fake one: `uv run pytest`.

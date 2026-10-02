@@ -16,13 +16,9 @@ notify:
       example: check
       # Long on purpose: the icons the firmware ships, including the Draw
       # Tool's set, whose names are the ones the Draw Tool shows.
-      # custom_value lets anything else a bar has - an icon its owner
-      # uploaded - be typed in, and busylib checks the name against that
-      # bar rather than against this list, which can only go stale.
       selector:
         select:
           mode: dropdown
-          custom_value: true
           options:
             - check
             - error
@@ -102,13 +98,9 @@ notify:
       selector:
         select:
           mode: dropdown
-          custom_value: true
           options:
             # The three short names busylib keeps, and the six files the
-            # firmware actually ships. custom_value takes anything else a
-            # bar has - the names are checked against that bar, not this
-            # list, which can only ever be the set of a particular
-            # firmware.
+            # firmware actually ships.
             - event
             - reminder
             - volume
@@ -401,13 +393,9 @@ play_sound:
       selector:
         select:
           mode: dropdown
-          custom_value: true
           options:
             # The three short names busylib keeps, and the six files the
-            # firmware actually ships. custom_value takes anything else a
-            # bar has - the names are checked against that bar, not this
-            # list, which can only ever be the set of a particular
-            # firmware.
+            # firmware actually ships.
             - event
             - reminder
             - volume
@@ -427,21 +415,6 @@ list_assets:
   target:
     entity:
       integration: busy
-
-upload_asset:
-  target:
-    entity:
-      integration: busy
-  fields:
-    file:
-      required: true
-      example: /config/www/logo.png
-      selector:
-        text:
-    name:
-      example: deploy_done.png
-      selector:
-        text:
 
 draw:
   target:
