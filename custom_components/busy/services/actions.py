@@ -9,6 +9,7 @@ and only busylib knows the device's version - so the layout lives in
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass
 import difflib
 from functools import partial
 from typing import Any
@@ -28,6 +29,24 @@ from .targets import bars_targeted, title
 
 type Data = Mapping[str, Any]
 type Work = Callable[[BusyBarCoordinator, Data], Awaitable[None]]
+
+
+@dataclass(frozen=True)
+class Action:
+    """
+    One action: what it accepts, what it does, and how it fails.
+
+    `drawing` ones may be refused because the screen is taken, and leave the
+    poll alone; the others are sessions and settings, which change what only
+    the poll reads back. `failed` and `invalid` name the messages, so that an
+    error says what was being done.
+    """
+
+    schema: Any
+    work: Work
+    drawing: bool = False
+    failed: str = "timer_failed"
+    invalid: str = "invalid_timer_request"
 
 
 def _screen_is_taken(coordinator: BusyBarCoordinator) -> HomeAssistantError:
@@ -52,7 +71,7 @@ def _screen_is_taken(coordinator: BusyBarCoordinator) -> HomeAssistantError:
     )
 
 
-async def run(call: ServiceCall, work: Work, *, drawing: bool = False) -> None:
+async def run(call: ServiceCall, action: Action) -> None:
     """
     Run one change against every targeted bar, translating what it raises.
 
@@ -61,21 +80,23 @@ async def run(call: ServiceCall, work: Work, *, drawing: bool = False) -> None:
     re-read afterwards because several of these change what only the poll
     reads back.
     """
-    failed, invalid = (
-        ("notify_failed", "invalid_notification")
-        if drawing
-        else ("timer_failed", "invalid_timer_request")
-    )
     for coordinator in bars_targeted(call):
         try:
-            await work(coordinator, call.data)
+            await action.work(coordinator, call.data)
         except (BusyBarError, ValueError) as err:
-            if drawing and isinstance(err, BusyBarAPIError) and err.status_code == 409:
+            if (
+                action.drawing
+                and isinstance(err, BusyBarAPIError)
+                and err.status_code == 409
+            ):
                 raise _screen_is_taken(coordinator) from err
             raise translate(
-                err, failed=failed, invalid=invalid, bar=title(coordinator)
+                err,
+                failed=action.failed,
+                invalid=action.invalid,
+                bar=title(coordinator),
             ) from err
-        if not drawing:
+        if not action.drawing:
             await coordinator.async_request_refresh()
 
 
@@ -155,7 +176,7 @@ async def draw(coordinator: BusyBarCoordinator, data: Data) -> None:
     back is usually one word for the room, not a layout.
     """
     element = types.TextElement(
-        id=data["name"],
+        id=data.get("name") or f"draw_{data['display']}",
         text=data["text"],
         font=data["font"],
         color=data.get("color"),
@@ -196,6 +217,7 @@ async def play_sound(coordinator: BusyBarCoordinator, data: Data) -> None:
 
 
 async def start_card(slot: types.BusyProfileSlot, c: BusyBarCoordinator, d: Data):
+    await quick.check_theme(c.client, d.get("theme"))
     await timer.start(c.client, slot, theme=d.get("theme"))
 
 
@@ -219,43 +241,39 @@ async def set_theme(c: BusyBarCoordinator, d: Data) -> None:
         await timer.set_card_theme(c.client, mode, d["theme"])
 
 
-# name -> (schema, work, drawing). Starting a card is one action per position
+# Starting a card is one action per position
 # rather than one with a mode to pick, because that is how an automation
 # reads: "start busy" is the whole thought. Likewise one per kind of quick
 # session, since each kind's settings differ.
-ACTIONS: dict[str, tuple[Any, Work, bool]] = {
-    "notify": (schemas.NOTIFY, notify, True),
-    "draw": (schemas.DRAW, draw, True),
-    "clear": (schemas.TARGET, clear, True),
-    "play_sound": (schemas.PLAY_SOUND, play_sound, True),
-    "start_busy": (schemas.START_CARD, partial(start_card, "busy"), False),
-    "start_custom": (schemas.START_CARD, partial(start_card, "custom"), False),
-    "start_quick_infinite": (
-        schemas.QUICK_INFINITE,
-        partial(start_quick, "infinite"),
-        False,
+ACTIONS: dict[str, Action] = {
+    "notify": Action(
+        schemas.NOTIFY, notify, True, "notify_failed", "invalid_notification"
     ),
-    "start_quick_simple": (schemas.QUICK_SIMPLE, partial(start_quick, "simple"), False),
-    "start_quick_interval": (
-        schemas.QUICK_INTERVAL,
-        partial(start_quick, "interval"),
-        False,
+    "draw": Action(schemas.DRAW, draw, True, "display_failed", "invalid_drawing"),
+    "clear": Action(schemas.TARGET, clear, True, "display_failed", "invalid_drawing"),
+    "play_sound": Action(
+        schemas.PLAY_SOUND, play_sound, True, "sound_failed", "sound_failed"
+    ),
+    "start_busy": Action(schemas.START_CARD, partial(start_card, "busy")),
+    "start_custom": Action(schemas.START_CARD, partial(start_card, "custom")),
+    "start_quick_infinite": Action(
+        schemas.QUICK_INFINITE, partial(start_quick, "infinite")
+    ),
+    "start_quick_simple": Action(schemas.QUICK_SIMPLE, partial(start_quick, "simple")),
+    "start_quick_interval": Action(
+        schemas.QUICK_INTERVAL, partial(start_quick, "interval")
     ),
     # Not the selector's off position, which is do-not-disturb.
-    "stop_session": (schemas.TARGET, lambda c, d: timer.stop(c.client), False),
-    "pause_session": (
-        schemas.TARGET,
-        lambda c, d: timer.set_paused(c.client, True),
-        False,
+    "stop_session": Action(schemas.TARGET, lambda c, d: timer.stop(c.client)),
+    "pause_session": Action(
+        schemas.TARGET, lambda c, d: timer.set_paused(c.client, True)
     ),
-    "resume_session": (
-        schemas.TARGET,
-        lambda c, d: timer.set_paused(c.client, False),
-        False,
+    "resume_session": Action(
+        schemas.TARGET, lambda c, d: timer.set_paused(c.client, False)
     ),
     # Work to rest, or rest to the next work.
-    "next_phase": (schemas.TARGET, lambda c, d: timer.next_phase(c.client), False),
-    "set_theme": (schemas.SET_THEME, set_theme, False),
+    "next_phase": Action(schemas.TARGET, lambda c, d: timer.next_phase(c.client)),
+    "set_theme": Action(schemas.SET_THEME, set_theme),
 }
 
 

@@ -208,3 +208,118 @@ async def test_pausing_with_nothing_running_is_a_mistake_in_the_automation(
         pytest.raises(ServiceValidationError, match="no session"),
     ):
         await act("pause_session")
+
+
+# A theme the bar does not have ----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("action", "data"),
+    [
+        ("start_busy", {}),
+        ("start_custom", {}),
+        ("start_quick_infinite", {}),
+        ("start_quick_simple", {"duration": 5}),
+        ("start_quick_interval", {}),
+    ],
+)
+async def test_every_start_refuses_a_theme_the_bar_has_not_got(
+    act, started, action, data
+) -> None:
+    """
+    The bar does not: it starts anyway, shows its default and reports the
+    missing theme as the one it is running.
+    """
+    with pytest.raises(ServiceValidationError, match="has no theme called nope"):
+        await act(action, theme="nope", **data)
+
+    assert not started.called, "no session was started"
+
+
+async def test_the_refusal_lists_the_themes_there_are(act) -> None:
+    with pytest.raises(ServiceValidationError, match="dnd, meeting"):
+        await act("start_busy", theme="nope")
+
+
+@pytest.mark.parametrize("theme", ["meeting", "busy"])
+async def test_a_theme_the_bar_has_starts_the_session(act, started, theme) -> None:
+    """
+    `busy` is the firmware's own and has no directory, so the bar does not
+    list it - and it must stay allowed.
+    """
+    await act("start_busy", theme=theme)
+
+    assert started.call_args.kwargs["theme"] == theme
+
+
+async def test_no_theme_asks_for_nothing_to_check(act, started) -> None:
+    await act("start_busy")
+
+    assert started.call_args.kwargs["theme"] is None
+
+
+async def test_a_stale_quick_theme_is_refused_too(act, started, hass) -> None:
+    """
+    The remembered theme of a quick session is the bar's to have: one deleted
+    since is refused with the list, not started as the default.
+    """
+    entry = hass.config_entries.async_entries("busy")[0]
+    entry.runtime_data.quick.themes["simple"] = "deleted-theme"
+
+    with pytest.raises(ServiceValidationError, match="deleted-theme"):
+        await act("start_quick_simple")
+    assert not started.called
+
+
+# Drawing on both displays ---------------------------------------------------------
+
+
+async def test_a_drawing_on_each_display_needs_no_name_of_its_own(act, bar) -> None:
+    """
+    The bar keeps one id for the whole application, so one default name for
+    both displays made the back refused while the front held a drawing.
+    """
+    await act("draw", text="F")
+    await act("draw", text="B", display="back")
+
+    ids = [payload.elements[0].id for payload in bar.drawn]
+    assert ids == ["draw_front", "draw_back"]
+
+
+async def test_drawing_again_on_one_display_still_replaces_it(act, bar) -> None:
+    await act("draw", text="one")
+    await act("draw", text="two")
+
+    assert [p.elements[0].id for p in bar.drawn] == ["draw_front", "draw_front"]
+
+
+async def test_a_name_that_was_asked_for_is_the_one_used(act, bar) -> None:
+    await act("draw", text="x", display="back", name="on_air")
+
+    assert bar.drawn[-1].elements[0].id == "on_air"
+
+
+@pytest.mark.parametrize(
+    ("action", "data", "message"),
+    [
+        ("draw", {"text": "x"}, "Could not change what the bar shows"),
+        ("clear", {}, "Could not change what the bar shows"),
+        ("play_sound", {"sound": "event"}, "Could not play the sound"),
+        ("notify", {"line_1": "x"}, "Could not show the notification"),
+    ],
+)
+async def test_a_failure_says_what_was_being_done(
+    act, bar, action, data, message
+) -> None:
+    """
+    A refused drawing was reported as "Could not show the notification".
+    """
+    error = BusyBarAPIError("Bad Request", status_code=400)
+    bar.display_draw = AsyncMock(side_effect=error)
+    bar.display_clear = AsyncMock(side_effect=error)
+    bar.audio_play = AsyncMock(side_effect=error)
+    with (
+        patch(f"{ACTIONS}.notification.notify", AsyncMock(side_effect=error)),
+        pytest.raises(HomeAssistantError, match=message),
+    ):
+        await act(action, **data)

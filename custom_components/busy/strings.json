@@ -91,6 +91,15 @@
     },
     "unknown_asset_closest": {
       "message": "This bar has no {kind} called {name}. The closest it has: {closest}. Run the “List what a bar can show and play” action for all {count}."
+    },
+    "display_failed": {
+      "message": "Could not change what the bar shows: {error}"
+    },
+    "invalid_drawing": {
+      "message": "That cannot be drawn: {error}"
+    },
+    "sound_failed": {
+      "message": "Could not play the sound: {error}"
     }
   },
   "services": {
@@ -323,7 +332,7 @@
         },
         "name": {
           "name": "Name",
-          "description": "Names this drawing, so drawing again under the same name replaces it instead of adding to it. Left out, it is simply “draw”."
+          "description": "Names this drawing, so drawing again under the same name replaces it instead of adding to it. Left out, it is “draw_front” or “draw_back” by the display, so a drawing on one display never replaces one on the other."
         }
       },
       "sections": {
