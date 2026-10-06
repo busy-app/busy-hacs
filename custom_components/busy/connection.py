@@ -13,6 +13,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
+from .const import DOMAIN
 from .coordinator import BusyBarConfigEntry
 from .discovery import async_discover_busy
 
@@ -61,7 +62,9 @@ async def async_connect(
     devices = await async_discover_busy(hass)
     device = next((d for d in devices if d.device_id == device_id), None)
     if device is None:
-        raise ConfigEntryNotReady(translation_key="device_unreachable")
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN, translation_key="device_unreachable"
+        )
 
     over_wifi = device.get_address("over_wifi")
     client = await answering(
@@ -75,7 +78,9 @@ async def async_connect(
         )
     )
     if client is None:
-        raise ConfigEntryNotReady(translation_key="device_unreachable")
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN, translation_key="device_unreachable"
+        )
 
     # The address Home Assistant can reach, not the bar's USB one.
     found = over_wifi or device.get_address()

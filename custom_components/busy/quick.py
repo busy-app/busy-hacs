@@ -39,6 +39,22 @@ class QuickSession:
     )
 
 
+async def check_theme(client: AsyncBusyBar, theme: str | None) -> None:
+    """
+    Refuse a theme this bar does not have.
+
+    The bar does not: a session naming a theme it has no assets for starts
+    anyway, shows the default, and reports the missing one as the theme it
+    is running. `busy` is always there - it is the firmware's own and has no
+    directory - so it is allowed whether or not a card names it.
+    """
+    if theme is None or theme == timer.DEFAULT_THEME:
+        return
+    known = await timer.themes(client)
+    if theme not in known:
+        raise timer.UnknownThemeError(theme, sorted({*known, timer.DEFAULT_THEME}))
+
+
 async def start(
     client: AsyncBusyBar,
     quick: QuickSession,
@@ -68,6 +84,8 @@ async def start(
     def ms(minutes: int | None) -> int | None:
         return None if minutes is None else minutes * 60_000
 
+    theme = theme or quick.themes.get(kind)
+    await check_theme(client, theme)
     await timer.start(
         client,
         card_id=QUICK_CARD_ID,
@@ -75,5 +93,5 @@ async def start(
         duration_ms=ms(duration),
         rest_ms=ms(rest),
         cycles=cycles,
-        theme=theme or quick.themes.get(kind),
+        theme=theme,
     )

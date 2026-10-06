@@ -18,9 +18,9 @@ from .actions import ACTIONS, list_assets, run
 
 
 def async_register_services(hass: HomeAssistant) -> None:
-    for name, (schema, work, drawing) in ACTIONS.items():
+    for name, action in ACTIONS.items():
         hass.services.async_register(
-            DOMAIN, name, partial(run, work=work, drawing=drawing), schema=schema
+            DOMAIN, name, partial(run, action=action), schema=action.schema
         )
     # Read-only, and the caller always wants the answer: this exists to be
     # run from the UI and read.

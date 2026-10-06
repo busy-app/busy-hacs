@@ -9,7 +9,7 @@ from datetime import timedelta
 import logging
 
 from busylib import AsyncBusyBar, types
-from busylib.exceptions import BusyBarError
+from busylib.exceptions import BusyBarAPIError, BusyBarError
 from busylib.features import (
     DeviceSnapshot,
     InputEvent,
@@ -20,8 +20,10 @@ from busylib.features import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from .const import DOMAIN
 from .install import InstallTracker, is_installing
 from .quick import QuickSession
 
@@ -56,6 +58,7 @@ _INTERESTING = (
 # How long to wait before reconnecting a dropped stream. Long enough not to
 # hammer a rebooting bar, short enough that a session change is not missed.
 _RECONNECT_DELAY = 5.0
+_RECONNECT_LIMIT = 60.0
 
 
 @dataclass(frozen=True)
@@ -118,6 +121,12 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
                 for slot in ("busy", "custom")
             }
         except BusyBarError as err:
+            if isinstance(err, BusyBarAPIError) and err.status_code in (401, 403):
+                # The bar answered and said no: its token was deleted, or the
+                # bar was reset. Home Assistant asks for a new one itself.
+                raise ConfigEntryAuthFailed(
+                    translation_domain=DOMAIN, translation_key="access_unauthorized"
+                ) from err
             if self.installing is not None and self.data is not None:
                 # Mid-install silence is the reboot, not a lost bar.
                 _LOGGER.debug(
@@ -200,9 +209,15 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
         restarts on a firmware update, and the entities would otherwise stay
         frozen at whatever they last saw until Home Assistant restarted.
         """
+        # Doubling up to a minute, and back to the start once the bar says
+        # anything: a bar that is rebooting is looked for soon, one that
+        # refuses the token is not asked every few seconds for as long as the
+        # question of a new one is open.
+        delay = _RECONNECT_DELAY
         while True:
             try:
                 async for message in self.client.stream_status_ws():
+                    delay = _RECONNECT_DELAY
                     if not isinstance(message, dict):
                         continue
                     self._apply(message)
@@ -214,7 +229,8 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
                     self.device_id,
                     exc_info=True,
                 )
-            await asyncio.sleep(_RECONNECT_DELAY)
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, _RECONNECT_LIMIT)
 
     def add_input_listener(
         self, callback: Callable[[InputEvent], None]

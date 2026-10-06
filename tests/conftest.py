@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from busylib import types
 from busylib.devices import BusyBarAddress, BusyBarAddressAffinity, BusyBarDevice
-from busylib.exceptions import BusyBarError, BusyBarRequestError
+from busylib.exceptions import BusyBarAPIError, BusyBarRequestError
 from busylib.features import DeviceSnapshot
 from homeassistant.const import CONF_DEVICE_ID, CONF_HOST, CONF_TOKEN
 from homeassistant.helpers import device_registry as dr
@@ -87,19 +87,31 @@ class FakeBar:
         *,
         http_api: bool = True,
         password: str | None = None,
+        mode: str | None = None,
     ) -> None:
         self.device_id = device_id
         self.bar_name = name
         self.host = host
         self.base_url = f"http://{host}"
         self.http_api = http_api
-        # A bar that wants a password before it mints a token, and the
-        # one the client was built with.
+        # How the bar's HTTP API is set: off (`disabled`, which still answers
+        # but refuses everything), open (`enabled`), or behind a key (`key`).
+        # A password means a key.
         self.password = password
+        self.mode = mode or ("key" if password is not None else "enabled")
+        # What the client was built with, the tokens the bar honours (only
+        # looked at behind a key), and the ones revoked.
         self.token: str | None = None
+        self.valid_tokens = {f"token-for-{device_id}"}
+        self.revoked: list[str] = []
+        # What the last minted token was called.
+        self.minted = ""
         self.closed = False
         self.inputs: list[Any] = []
         self.drawn: list[Any] = []
+        # What was cleared, and what each application has up: the ids.
+        self.cleared: list[Any] = []
+        self.screen: dict[str, set[str]] = {}
 
     def _refuse_if_off(self) -> None:
         if not self.http_api:
@@ -111,15 +123,41 @@ class FakeBar:
                 path="/api/access/tokens",
             )
 
+    def _refuse(self) -> None:
+        raise BusyBarAPIError("Forbidden", status_code=403)
+
+    def _check_token(self) -> None:
+        """
+        What the bar does with a request: nothing when it is open, a refusal
+        when it is behind a key and the token is not one it knows.
+        """
+        if self.mode == "disabled":
+            self._refuse()
+        if self.mode == "key" and self.token not in {*self.valid_tokens, self.password}:
+            self._refuse()
+
     async def access_token_mint(self, name: str) -> Any:
         self._refuse_if_off()
-        if self.password is not None and self.token != self.password:
-            raise BusyBarError("a password is needed")
+        if self.mode == "disabled":
+            self._refuse()
+        if self.mode == "key" and self.token != self.password:
+            self._refuse()
+        self.minted = name
         return MagicMock(token=f"token-for-{self.device_id}", short_id="abcd")
 
     async def access(self) -> Any:
         self._refuse_if_off()
-        return MagicMock()
+        return types.HttpAccessInfo(mode=self.mode)
+
+    async def access_tokens_list(self) -> Any:
+        self._refuse_if_off()
+        self._check_token()
+        return types.AccessTokensInfo(tokens=[])
+
+    async def access_tokens_revoke(self, short_id: str) -> Any:
+        self._refuse_if_off()
+        self.revoked.append(short_id)
+        return types.SuccessResponse(result="OK")
 
     async def aclose(self) -> None:
         self.closed = True
@@ -136,13 +174,44 @@ class FakeBar:
         self._refuse_if_off()
         self.inputs.append(key)
 
+    async def display_clear(
+        self, *, element_ids: Any = None, application_name: str = "", **_: Any
+    ) -> Any:
+        """
+        Take elements off the screen the way the firmware does: nothing up is
+        a 400, and so is naming an element that is not up - the whole request
+        refused, not the part that was wrong.
+        """
+        self._refuse_if_off()
+        up = self.screen.setdefault(application_name, set())
+        if not up:
+            raise BusyBarAPIError(
+                "this application_name is currently not displaying anything",
+                status_code=400,
+            )
+        if element_ids is not None and not set(element_ids) <= up:
+            raise BusyBarAPIError("one of element_ids is non-existent", status_code=400)
+        self.cleared.append(None if element_ids is None else list(element_ids))
+        if element_ids is None:
+            up.clear()
+        else:
+            up -= set(element_ids)
+        return types.SuccessResponse(result="OK")
+
     async def display_draw(self, display_data: Any, **_: Any) -> Any:
         """
         Keep what was drawn, as the model the library built for the bar.
         """
         self._refuse_if_off()
         self.drawn.append(display_data)
+        self.screen.setdefault(display_data.application_name, set()).update(
+            element.id for element in display_data.elements
+        )
         return MagicMock()
+
+    # What the bar says its API is: current, so nothing is refused for
+    # being too new for it.
+    device_api_version = "27.10.0"
 
     async def name(self) -> types.DeviceNameResponse:
         self._refuse_if_off()
@@ -316,6 +385,10 @@ def busy_network(
 
     with (
         patch("custom_components.busy.connection.AsyncBusyBar", side_effect=client_for),
+        patch(
+            "custom_components.busy.config_flow.AsyncBusyBar", side_effect=client_for
+        ),
+        patch("custom_components.busy.AsyncBusyBar", side_effect=client_for),
         patch.object(BusyBarDevice, "to_async_client", client_from_device),
         patch(
             "custom_components.busy.connection.async_discover_busy",
