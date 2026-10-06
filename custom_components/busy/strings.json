@@ -4,7 +4,9 @@
       "already_configured": "Device is already configured",
       "already_in_progress": "Setup for this device is already in progress",
       "no_devices_found": "No BUSY Bar devices found.\nMake sure to check the following:\n- BUSY Bar is charged and powered on\n- The HTTP API is on: SETTINGS > Wi-Fi on the bar\n- If you want to use Wi-Fi, go to SETTINGS > Wi-Fi and check whether BUSY Bar is connected to the same network than the machine running Home Assistant.\n- If you want to use USB, check whether BUSY Bar is connected to the machine running Home Assistant.",
-      "http_api_disabled": "{name} was found on the network but did not answer over HTTP.\nA bar keeps announcing itself even with its HTTP API turned off, which is why it appears here and then cannot be added.\nOn the bar, open SETTINGS > Wi-Fi and turn on the HTTP API, then add it again. If the API is already on, the bar may have been busy - try once more."
+      "http_api_disabled": "{name} was found on the network but did not answer over HTTP.\nA bar keeps announcing itself even with its HTTP API turned off, which is why it appears here and then cannot be added.\nOn the bar, open SETTINGS > Wi-Fi and turn on the HTTP API, then add it again. If the API is already on, the bar may have been busy - try once more.",
+      "reauth_successful": "Paired again. The bar is back.",
+      "cannot_connect": "Could not reach the bar at the address Home Assistant remembers. Check that it is on and on the same network, then try again."
     },
     "flow_title": "{name}",
     "step": {
@@ -16,7 +18,17 @@
           "password": "Wi-Fi access key"
         },
         "description": "The bar's HTTP API over Wi-Fi has to be on for Home Assistant to reach it. If the API asks for an access key, enter it; the key is shown on the bar under SETTINGS > Wi-Fi."
+      },
+      "reauth_confirm": {
+        "title": "Reconnect {name}",
+        "description": "{name} no longer accepts the token Home Assistant had for it - it was deleted on the bar, or the bar was reset. Enter the access key shown on the bar under SETTINGS > Wi-Fi to pair again. Nothing else changes: the device, its entities and your automations stay.",
+        "data": {
+          "password": "Wi-Fi access key"
+        }
       }
+    },
+    "error": {
+      "invalid_auth": "The bar did not accept that key. It is shown on the bar under SETTINGS > Wi-Fi."
     }
   },
   "exceptions": {
@@ -24,7 +36,7 @@
       "message": "The bar is no longer answering. Check its Wi-Fi or USB connection, and that its HTTP API is still turned on."
     },
     "access_unauthorized": {
-      "message": "Device has been removed from this smart home. Please reconfigure the device."
+      "message": "The bar no longer accepts Home Assistant's token. Reconnect it from the notification in Settings: it asks for the access key shown on the bar."
     },
     "unknown_device": {
       "message": "That device is not known to Home Assistant."

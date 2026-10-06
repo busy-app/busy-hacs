@@ -4,6 +4,7 @@ from functools import partial
 import logging
 from typing import Any
 
+from busylib import AsyncBusyBar
 from busylib.devices import (
     BUSYBAR_INSTANCE_NAME_PREFIX,
     BUSYBAR_USB_SUBNET,
@@ -22,6 +23,46 @@ from .const import DOMAIN
 from .discovery import async_discover_busy
 
 _LOGGER = logging.getLogger(__name__)
+
+_KEY_FORM = vol.Schema(
+    {vol.Required("password", default=""): vol.All(str, vol.Length(min=4, max=128))}
+)
+
+
+async def _async_mint(client: AsyncBusyBar, name: str) -> tuple[str | None, str]:
+    """
+    Ask a bar for a token, and say why not if it will not give one.
+
+    Returns the token, or a problem: `http_api_disabled` for a bar whose
+    HTTP API is off, `invalid_auth` for one that wants a key it was not given.
+
+    A bar with the API off still answers over HTTP - `/api/version` is 200,
+    `/api/access` says `disabled` and minting is refused with a 403 - so the
+    mode has to be read, and a refusal alone cannot be told from "needs a
+    key". A bar that does not answer at all is the same thing seen from
+    further away.
+    """
+    try:
+        if (await client.access()).mode == "disabled":
+            return None, "http_api_disabled"
+    except BusyBarRequestError:
+        return None, "http_api_disabled"
+    except BusyBarError:
+        pass  # firmware that cannot say; minting will
+    try:
+        return (await client.access_token_mint(name)).token, ""
+    except BusyBarRequestError:
+        return None, "http_api_disabled"
+    except BusyBarError:
+        return None, "invalid_auth"
+
+
+def _token_name(hass: Any) -> str:
+    """
+    What the bar lists the token as, on its own screen, where a person picks
+    which one to delete: Home Assistant, and which one.
+    """
+    return f"HA {hass.config.location_name}"
 
 
 def _reachable_address(discovery_info: Any) -> str | None:
@@ -245,14 +286,6 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_mint_token(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        SCHEMA = vol.Schema(
-            {
-                vol.Required("password", default=""): vol.All(
-                    str, vol.Length(min=4, max=128)
-                )
-            }
-        )
-
         password = user_input["password"] if user_input else None
 
         client = await self.hass.async_add_executor_job(
@@ -273,21 +306,17 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
             )
         )
 
-        try:
-            token_info = await client.access_token_mint(self.hass.config.location_name)
-            token = token_info.token
-        except BusyBarRequestError:
-            # The bar answered mDNS but not HTTP. Almost always this is a
-            # bar with its HTTP API over Wi-Fi switched off: it keeps
-            # announcing itself, so it is found and offered, and then
-            # nothing can talk to it. Asking for a key here is worse than
-            # useless - no key exists, and the person is left trying
-            # passwords against a door that is not there.
+        token, problem = await _async_mint(client, _token_name(self.hass))
+        if problem == "http_api_disabled":
+            # Asking for a key here is worse than useless - no key exists,
+            # and the person is left trying passwords against a door that
+            # is not there.
             return self.async_abort(reason="http_api_disabled")
-        except BusyBarError:
+        if token is None:
             return self.async_show_form(
                 step_id="mint_token",
-                data_schema=SCHEMA,
+                data_schema=_KEY_FORM,
+                errors={"base": "invalid_auth"} if password else None,
             )
 
         entry_data = {
@@ -307,4 +336,55 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_create_entry(
             title=self.device.name,
             data=entry_data,
+        )
+
+    #
+    # token refused --> "reauth" --> "reauth_confirm" --x--> done
+    #                                    ^               \
+    #                                    +- key needed ---+
+    #
+    async def async_step_reauth(self, entry_data: dict[str, Any]) -> ConfigFlowResult:
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """
+        Get a new token for a bar that stopped accepting the old one.
+
+        Only the token changes: the entry, its device and every entity stay,
+        so automations that name them go on working. A bar that needs no key
+        is paired again without being asked anything.
+        """
+        entry = self._get_reauth_entry()
+        host = entry.data.get(CONF_HOST)
+        if not host:
+            return self.async_abort(reason="cannot_connect")
+        password = user_input["password"] if user_input else None
+        client = await self.hass.async_add_executor_job(
+            partial(
+                AsyncBusyBar,
+                host,
+                token=password,
+                transport=AiohttpTransport(async_get_clientsession(self.hass)),
+            )
+        )
+        try:
+            token, problem = await _async_mint(client, _token_name(self.hass))
+        finally:
+            await client.aclose()
+        if problem == "http_api_disabled":
+            return self.async_abort(
+                reason="http_api_disabled",
+                description_placeholders={"name": entry.title},
+            )
+        if token is None:
+            return self.async_show_form(
+                step_id="reauth_confirm",
+                data_schema=_KEY_FORM,
+                description_placeholders={"name": entry.title},
+                errors={"base": "invalid_auth"} if password else None,
+            )
+        return self.async_update_reload_and_abort(
+            entry, data_updates={CONF_TOKEN: token}
         )

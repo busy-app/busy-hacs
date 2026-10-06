@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from busylib import types
 from busylib.devices import BusyBarAddress, BusyBarAddressAffinity, BusyBarDevice
-from busylib.exceptions import BusyBarError, BusyBarRequestError
+from busylib.exceptions import BusyBarAPIError, BusyBarRequestError
 from busylib.features import DeviceSnapshot
 from homeassistant.const import CONF_DEVICE_ID, CONF_HOST, CONF_TOKEN
 from homeassistant.helpers import device_registry as dr
@@ -87,16 +87,25 @@ class FakeBar:
         *,
         http_api: bool = True,
         password: str | None = None,
+        mode: str | None = None,
     ) -> None:
         self.device_id = device_id
         self.bar_name = name
         self.host = host
         self.base_url = f"http://{host}"
         self.http_api = http_api
-        # A bar that wants a password before it mints a token, and the
-        # one the client was built with.
+        # How the bar's HTTP API is set: off (`disabled`, which still answers
+        # but refuses everything), open (`enabled`), or behind a key (`key`).
+        # A password means a key.
         self.password = password
+        self.mode = mode or ("key" if password is not None else "enabled")
+        # What the client was built with, the tokens the bar honours (only
+        # looked at behind a key), and the ones revoked.
         self.token: str | None = None
+        self.valid_tokens = {f"token-for-{device_id}"}
+        self.revoked: list[str] = []
+        # What the last minted token was called.
+        self.minted = ""
         self.closed = False
         self.inputs: list[Any] = []
         self.drawn: list[Any] = []
@@ -111,15 +120,41 @@ class FakeBar:
                 path="/api/access/tokens",
             )
 
+    def _refuse(self) -> None:
+        raise BusyBarAPIError("Forbidden", status_code=403)
+
+    def _check_token(self) -> None:
+        """
+        What the bar does with a request: nothing when it is open, a refusal
+        when it is behind a key and the token is not one it knows.
+        """
+        if self.mode == "disabled":
+            self._refuse()
+        if self.mode == "key" and self.token not in {*self.valid_tokens, self.password}:
+            self._refuse()
+
     async def access_token_mint(self, name: str) -> Any:
         self._refuse_if_off()
-        if self.password is not None and self.token != self.password:
-            raise BusyBarError("a password is needed")
+        if self.mode == "disabled":
+            self._refuse()
+        if self.mode == "key" and self.token != self.password:
+            self._refuse()
+        self.minted = name
         return MagicMock(token=f"token-for-{self.device_id}", short_id="abcd")
 
     async def access(self) -> Any:
         self._refuse_if_off()
-        return MagicMock()
+        return types.HttpAccessInfo(mode=self.mode)
+
+    async def access_tokens_list(self) -> Any:
+        self._refuse_if_off()
+        self._check_token()
+        return types.AccessTokensInfo(tokens=[])
+
+    async def access_tokens_revoke(self, short_id: str) -> Any:
+        self._refuse_if_off()
+        self.revoked.append(short_id)
+        return types.SuccessResponse(result="OK")
 
     async def aclose(self) -> None:
         self.closed = True
@@ -316,6 +351,10 @@ def busy_network(
 
     with (
         patch("custom_components.busy.connection.AsyncBusyBar", side_effect=client_for),
+        patch(
+            "custom_components.busy.config_flow.AsyncBusyBar", side_effect=client_for
+        ),
+        patch("custom_components.busy.AsyncBusyBar", side_effect=client_for),
         patch.object(BusyBarDevice, "to_async_client", client_from_device),
         patch(
             "custom_components.busy.connection.async_discover_busy",
