@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from busylib import types
-from busylib.exceptions import BusyBarError
 from busylib.features import timer_state
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
+    BinarySensorEntityDescription,
 )
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
@@ -22,99 +23,86 @@ from .entity import PARALLEL_UPDATES, BusyBarEntity
 __all__ = ["PARALLEL_UPDATES", "async_setup_entry"]
 
 
+@dataclass(frozen=True, kw_only=True)
+class BusyBinarySensorDescription(BinarySensorEntityDescription):
+    is_on: Callable[[BusyBarCoordinator], bool | None]
+    attributes: Callable[[BusyBarCoordinator], dict[str, Any] | None] | None = None
+
+
+def _running(coordinator: BusyBarCoordinator) -> bool | None:
+    running = coordinator.data.snapshot.timer
+    return None if running is None else timer_state(running).is_running
+
+
+def _charging(coordinator: BusyBarCoordinator) -> bool | None:
+    power = coordinator.data.snapshot.power
+    if power is None or power.state is None:
+        return None
+    return power.state == types.PowerState.CHARGING
+
+
+def _update_window(coordinator: BusyBarCoordinator) -> dict[str, Any] | None:
+    # The window the bar may update in - overnight by default.
+    settings = coordinator.data.autoupdate
+    if settings is None:
+        return None
+    return {
+        "window_start": settings.interval_start,
+        "window_end": settings.interval_end,
+    }
+
+
+BINARY_SENSORS: tuple[BusyBinarySensorDescription, ...] = (
+    BusyBinarySensorDescription(
+        # Whether a session is under way, paused included. For automations
+        # that react to "a session started" whatever phase it began in, so
+        # hidden: the two session switches already show it.
+        key="session_running",
+        entity_registry_visible_default=False,
+        is_on=_running,
+    ),
+    BusyBinarySensorDescription(
+        # A reading rather than a switch: turning it off from here would be
+        # a decision made where the bar's owner is not looking.
+        key="automatic_updates",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        is_on=lambda c: s.is_enabled if (s := c.data.autoupdate) else None,
+        attributes=_update_window,
+    ),
+    BusyBinarySensorDescription(
+        key="charging",
+        device_class=BinarySensorDeviceClass.BATTERY_CHARGING,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        is_on=_charging,
+    ),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: BusyBarConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     coordinator = config_entry.runtime_data
-    try:
-        name = (await coordinator.client.name()).name
-    except BusyBarError as err:
-        raise PlatformNotReady(
-            f"BUSY Bar {coordinator.device_id} is unreachable"
-        ) from err
-
-    async_add_entities(
-        [
-            SessionRunningSensor(coordinator, name),
-            AutomaticUpdatesSensor(coordinator, name),
-            ChargingSensor(coordinator, name),
-        ]
-    )
+    async_add_entities(BusyBinarySensor(coordinator, d) for d in BINARY_SENSORS)
 
 
-class SessionRunningSensor(BusyBarEntity, BinarySensorEntity):
-    """
-    Whether a session is under way, paused included.
+class BusyBinarySensor(BusyBarEntity, BinarySensorEntity):
+    entity_description: BusyBinarySensorDescription
 
-    Separate from the phase sensor so an automation can react to "a session
-    started" without caring which phase it began in - which is also why it
-    is hidden from dashboards: the two session switches already show it,
-    and this exists for automations rather than for looking at.
-    """
-
-    _attr_entity_registry_visible_default = False
-
-    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "session_running")
+    def __init__(
+        self,
+        coordinator: BusyBarCoordinator,
+        description: BusyBinarySensorDescription,
+    ) -> None:
+        super().__init__(coordinator, description.key)
+        self.entity_description = description
 
     @property
     def is_on(self) -> bool | None:
-        data = self.coordinator.data
-        if data is None or data.snapshot.timer is None:
-            return None
-        return timer_state(data.snapshot.timer).is_running
-
-
-class ChargingSensor(BusyBarEntity, BinarySensorEntity):
-    """Whether the bar is taking charge."""
-
-    _attr_device_class = BinarySensorDeviceClass.BATTERY_CHARGING
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "charging")
-
-    @property
-    def is_on(self) -> bool | None:
-        data = self.coordinator.data
-        if data is None or data.snapshot.power is None:
-            return None
-        state = data.snapshot.power.state
-        return None if state is None else state == types.PowerState.CHARGING
-
-
-class AutomaticUpdatesSensor(BusyBarEntity, BinarySensorEntity):
-    """
-    Whether the bar installs firmware updates by itself.
-
-    A reading rather than a switch: it is a fact about how the bar looks
-    after itself, and turning it off from here would be a decision made
-    somewhere the bar's owner is not looking. The window it is allowed to
-    update in - overnight by default - rides along as attributes.
-    """
-
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    def __init__(self, coordinator: BusyBarCoordinator, name: str) -> None:
-        super().__init__(coordinator, name, "automatic_updates")
-
-    def _settings(self):
-        data = self.coordinator.data
-        return None if data is None else data.autoupdate
-
-    @property
-    def is_on(self) -> bool | None:
-        settings = self._settings()
-        return None if settings is None else settings.is_enabled
+        return self.entity_description.is_on(self.coordinator)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        settings = self._settings()
-        if settings is None:
-            return None
-        return {
-            "window_start": settings.interval_start,
-            "window_end": settings.interval_end,
-        }
+        attributes = self.entity_description.attributes
+        return None if attributes is None else attributes(self.coordinator)
