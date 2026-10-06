@@ -323,3 +323,79 @@ async def test_a_failure_says_what_was_being_done(
         pytest.raises(HomeAssistantError, match=message),
     ):
         await act(action, **data)
+
+
+# A notification replaces the last one ---------------------------------------------
+
+
+def _ids(bar) -> list[str]:
+    return [element.id for element in bar.drawn[-1].elements]
+
+
+async def test_a_notification_takes_down_the_pieces_the_last_one_left_up(
+    act, bar
+) -> None:
+    """
+    The bar updates a drawing by element id, so a notification with no icon
+    and no second line left the last one's icon and second line on screen
+    under the new text.
+    """
+    await act("notify", line_1="AAAA", line_2="BBBB", icon="check")
+    assert _ids(bar) == ["10", "11", "12"]
+
+    await act("notify", line_1="CCCC")
+
+    assert _ids(bar) == ["11"]
+    # Background, icon and second line: whatever the new one did not draw.
+    assert bar.cleared[-1] == ["0", "10", "12"]
+
+
+async def test_a_full_notification_leaves_only_the_background_to_take_down(
+    act, bar
+) -> None:
+    await act("notify", line_1="AAAA", line_2="BBBB", icon="check")
+
+    assert bar.cleared == [["0"]]
+
+
+async def test_a_notification_with_a_background_takes_down_nothing_it_drew(
+    act, bar
+) -> None:
+    await act(
+        "notify", line_1="A", line_2="B", icon="check", background_color=[0, 0, 80]
+    )
+
+    assert _ids(bar) == ["0", "10", "11", "12"]
+    assert bar.cleared == [], "nothing was left over"
+
+
+async def test_what_was_drawn_with_draw_is_not_a_notification_s_to_take_down(
+    act, bar
+) -> None:
+    await act("draw", text="ON AIR", display="back", name="on_air")
+    await act("notify", line_1="hello")
+
+    assert bar.cleared == [["0", "10", "12"]]
+    assert "on_air" not in bar.cleared[0]
+
+
+async def test_a_notification_is_drawn_before_anything_is_taken_down(act, bar) -> None:
+    """
+    So the panel is never blank in between.
+    """
+    order: list[str] = []
+    original_draw, original_clear = bar.display_draw, bar.display_clear
+
+    async def draw(*args, **kwargs):
+        order.append("draw")
+        return await original_draw(*args, **kwargs)
+
+    async def clear(**kwargs):
+        order.append("clear")
+        return await original_clear(**kwargs)
+
+    bar.display_draw, bar.display_clear = draw, clear
+
+    await act("notify", line_1="x")
+
+    assert order == ["draw", "clear"]

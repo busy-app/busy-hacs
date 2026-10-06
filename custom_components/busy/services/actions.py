@@ -147,11 +147,44 @@ async def _resolve(coordinator: BusyBarCoordinator, kind: str, name: str):
         ) from None
 
 
+# The ids busylib draws a notification's pieces under: the background, the
+# icon and the two lines. The bar updates a drawing element by element, by id,
+# so a notification that leaves one out leaves the previous one's there.
+_NOTIFICATION_ELEMENTS = ("0", "10", "11", "12")
+
+
+class _Replacing:
+    """
+    A client that, when a notification is drawn, takes down whichever of its
+    pieces the new one does not use - so the notification replaces the last
+    one instead of being drawn over it.
+
+    After drawing and not before, so nothing goes blank in between; and only
+    the notification's own pieces, so a drawing left up with `draw` stays.
+    """
+
+    def __init__(self, client: Any) -> None:
+        self._client = client
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._client, name)
+
+    async def display_draw(self, elements: Any, **kwargs: Any) -> Any:
+        drawn = await self._client.display_draw(elements, **kwargs)
+        used = {element.id for element in elements.elements}
+        stale = [i for i in _NOTIFICATION_ELEMENTS if i not in used]
+        if stale:
+            await self._client.display_clear(
+                element_ids=stale, application_name=elements.application_name
+            )
+        return drawn
+
+
 async def notify(coordinator: BusyBarCoordinator, data: Data) -> None:
     icon = _optional(data.get("icon"))
     sound = _optional(data.get("sound"))
     await notification.notify(
-        coordinator.client,
+        _Replacing(coordinator.client),
         data["line_1"],
         line_2=data.get("line_2"),
         icon=await _resolve(coordinator, "image", icon) if icon else None,

@@ -109,6 +109,7 @@ class FakeBar:
         self.closed = False
         self.inputs: list[Any] = []
         self.drawn: list[Any] = []
+        self.cleared: list[Any] = []
 
     def _refuse_if_off(self) -> None:
         if not self.http_api:
@@ -171,6 +172,14 @@ class FakeBar:
         self._refuse_if_off()
         self.inputs.append(key)
 
+    async def display_clear(self, **kwargs: Any) -> Any:
+        """
+        Keep what was taken down: the ids, or everything when none are named.
+        """
+        self._refuse_if_off()
+        self.cleared.append(kwargs.get("element_ids"))
+        return types.SuccessResponse(result="OK")
+
     async def display_draw(self, display_data: Any, **_: Any) -> Any:
         """
         Keep what was drawn, as the model the library built for the bar.
@@ -178,6 +187,10 @@ class FakeBar:
         self._refuse_if_off()
         self.drawn.append(display_data)
         return MagicMock()
+
+    # What the bar says its API is: current, so nothing is refused for
+    # being too new for it.
+    device_api_version = "27.10.0"
 
     async def name(self) -> types.DeviceNameResponse:
         self._refuse_if_off()
