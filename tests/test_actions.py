@@ -326,10 +326,14 @@ async def test_a_failure_says_what_was_being_done(
 
 
 # A notification replaces the last one ---------------------------------------------
+#
+# The fake bar answers like the firmware: it refuses to clear an element that
+# is not up (the whole request), and a clear when nothing is up. What is
+# checked is what is left on the screen, not the requests that got it there.
 
 
-def _ids(bar) -> list[str]:
-    return [element.id for element in bar.drawn[-1].elements]
+def _up(bar) -> set[str]:
+    return bar.screen.get("home_assistant", set())
 
 
 async def test_a_notification_takes_down_the_pieces_the_last_one_left_up(
@@ -341,48 +345,62 @@ async def test_a_notification_takes_down_the_pieces_the_last_one_left_up(
     under the new text.
     """
     await act("notify", line_1="AAAA", line_2="BBBB", icon="check")
-    assert _ids(bar) == ["10", "11", "12"]
+    assert _up(bar) == {"10", "11", "12"}
 
     await act("notify", line_1="CCCC")
 
-    assert _ids(bar) == ["11"]
-    # Background, icon and second line: whatever the new one did not draw.
-    assert bar.cleared[-1] == ["0", "10", "12"]
+    assert _up(bar) == {"11"}
 
 
-async def test_a_full_notification_leaves_only_the_background_to_take_down(
+async def test_a_notification_on_an_empty_screen_is_not_refused_for_it(
+    act, bar
+) -> None:
+    """
+    Taking down what is not there is a 400 from the bar - every first
+    notification would have failed after it had drawn.
+    """
+    await act("notify", line_1="AAAA", line_2="BBBB", icon="check")
+
+    assert _up(bar) == {"10", "11", "12"}
+
+
+async def test_a_notification_that_timed_out_leaves_nothing_to_trip_over(
     act, bar
 ) -> None:
     await act("notify", line_1="AAAA", line_2="BBBB", icon="check")
+    bar.screen["home_assistant"].clear()  # its duration ran out
 
-    assert bar.cleared == [["0"]]
+    await act("notify", line_1="CCCC")
+
+    assert _up(bar) == {"11"}
 
 
-async def test_a_notification_with_a_background_takes_down_nothing_it_drew(
-    act, bar
-) -> None:
+async def test_a_notification_with_a_background_replaces_a_plain_one(act, bar) -> None:
     await act(
         "notify", line_1="A", line_2="B", icon="check", background_color=[0, 0, 80]
     )
+    assert _up(bar) == {"0", "10", "11", "12"}
 
-    assert _ids(bar) == ["0", "10", "11", "12"]
-    assert bar.cleared == [], "nothing was left over"
+    await act("notify", line_1="C")
+
+    assert _up(bar) == {"11"}
 
 
 async def test_what_was_drawn_with_draw_is_not_a_notification_s_to_take_down(
     act, bar
 ) -> None:
     await act("draw", text="ON AIR", display="back", name="on_air")
+    await act("notify", line_1="AAAA", line_2="BBBB")
     await act("notify", line_1="hello")
 
-    assert bar.cleared == [["0", "10", "12"]]
-    assert "on_air" not in bar.cleared[0]
+    assert _up(bar) == {"on_air", "11"}
 
 
 async def test_a_notification_is_drawn_before_anything_is_taken_down(act, bar) -> None:
     """
     So the panel is never blank in between.
     """
+    await act("notify", line_1="AAAA", line_2="BBBB")
     order: list[str] = []
     original_draw, original_clear = bar.display_draw, bar.display_clear
 
@@ -398,4 +416,26 @@ async def test_a_notification_is_drawn_before_anything_is_taken_down(act, bar) -
 
     await act("notify", line_1="x")
 
-    assert order == ["draw", "clear"]
+    assert order[0] == "draw" and set(order[1:]) == {"clear"}
+
+
+async def test_a_clear_that_fails_for_another_reason_is_not_hidden(act, bar) -> None:
+    await act("notify", line_1="AAAA", line_2="BBBB")
+    bar.display_clear = AsyncMock(
+        side_effect=BusyBarAPIError("Internal Server Error", status_code=500)
+    )
+
+    with pytest.raises(HomeAssistantError, match="Could not show the notification"):
+        await act("notify", line_1="x")
+
+
+async def test_clearing_what_is_not_there_is_already_done(act, bar) -> None:
+    """
+    The bar answers a clear with nothing up as a 400; running `clear` twice
+    must not fail the second time.
+    """
+    await act("draw", text="x")
+    await act("clear")
+    await act("clear")
+
+    assert _up(bar) == set()

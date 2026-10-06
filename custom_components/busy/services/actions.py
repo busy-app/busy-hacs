@@ -174,10 +174,32 @@ class _Replacing:
         used = {element.id for element in elements.elements}
         stale = [i for i in _NOTIFICATION_ELEMENTS if i not in used]
         if stale:
-            await self._client.display_clear(
-                element_ids=stale, application_name=elements.application_name
-            )
+            await self._take_down(stale, elements.application_name)
         return drawn
+
+    async def _take_down(self, ids: list[str], application_name: str) -> None:
+        """
+        Take down what is there. The bar refuses a request naming an element
+        that is not on screen - the whole request, not just that one - and
+        which of the pieces are up is not known here: the last notification
+        may have drawn more, fewer, or timed out. So all at once, and one by
+        one if that is refused.
+        """
+        if await self._clear(ids, application_name) or len(ids) == 1:
+            return
+        for one in ids:
+            await self._clear([one], application_name)
+
+    async def _clear(self, ids: list[str], application_name: str) -> bool:
+        try:
+            await self._client.display_clear(
+                element_ids=ids, application_name=application_name
+            )
+        except BusyBarAPIError as err:
+            if err.status_code != 400:
+                raise
+            return False  # something named was not there
+        return True
 
 
 async def notify(coordinator: BusyBarCoordinator, data: Data) -> None:
@@ -237,7 +259,13 @@ async def draw(coordinator: BusyBarCoordinator, data: Data) -> None:
 async def clear(coordinator: BusyBarCoordinator, data: Data) -> None:
     # Only this integration's elements: the bar owns what other applications
     # drew, and a notification with a duration goes away by itself.
-    await coordinator.client.display_clear(application_name=APPLICATION_NAME)
+    try:
+        await coordinator.client.display_clear(application_name=APPLICATION_NAME)
+    except BusyBarAPIError as err:
+        # Clearing what is not there is already done: the bar answers it with
+        # a 400, which would make `clear` fail for being run twice.
+        if err.status_code != 400 or "not displaying" not in str(err):
+            raise
 
 
 async def play_sound(coordinator: BusyBarCoordinator, data: Data) -> None:

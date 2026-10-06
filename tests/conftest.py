@@ -109,7 +109,9 @@ class FakeBar:
         self.closed = False
         self.inputs: list[Any] = []
         self.drawn: list[Any] = []
+        # What was cleared, and what each application has up: the ids.
         self.cleared: list[Any] = []
+        self.screen: dict[str, set[str]] = {}
 
     def _refuse_if_off(self) -> None:
         if not self.http_api:
@@ -172,12 +174,28 @@ class FakeBar:
         self._refuse_if_off()
         self.inputs.append(key)
 
-    async def display_clear(self, **kwargs: Any) -> Any:
+    async def display_clear(
+        self, *, element_ids: Any = None, application_name: str = "", **_: Any
+    ) -> Any:
         """
-        Keep what was taken down: the ids, or everything when none are named.
+        Take elements off the screen the way the firmware does: nothing up is
+        a 400, and so is naming an element that is not up - the whole request
+        refused, not the part that was wrong.
         """
         self._refuse_if_off()
-        self.cleared.append(kwargs.get("element_ids"))
+        up = self.screen.setdefault(application_name, set())
+        if not up:
+            raise BusyBarAPIError(
+                "this application_name is currently not displaying anything",
+                status_code=400,
+            )
+        if element_ids is not None and not set(element_ids) <= up:
+            raise BusyBarAPIError("one of element_ids is non-existent", status_code=400)
+        self.cleared.append(None if element_ids is None else list(element_ids))
+        if element_ids is None:
+            up.clear()
+        else:
+            up -= set(element_ids)
         return types.SuccessResponse(result="OK")
 
     async def display_draw(self, display_data: Any, **_: Any) -> Any:
@@ -186,6 +204,9 @@ class FakeBar:
         """
         self._refuse_if_off()
         self.drawn.append(display_data)
+        self.screen.setdefault(display_data.application_name, set()).update(
+            element.id for element in display_data.elements
+        )
         return MagicMock()
 
     # What the bar says its API is: current, so nothing is refused for
