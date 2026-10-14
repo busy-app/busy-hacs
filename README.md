@@ -187,10 +187,23 @@ application is holding the screen. The error says which. For the second case,
 
 ## Removing the integration
 
-This integration follows standard integration removal. Deleting it leaves
-one thing on the bar, which is harmless and can be removed from the bar
-itself: the access token Home Assistant was given, which stays until it is
-revoked on the bar.
+This integration follows standard integration removal. Deleting it also
+revokes the access token Home Assistant was given, if the bar can be reached
+(firmware 1.2.3 and later). A bar that is off, gone or older keeps the token,
+which is harmless and can be deleted on the bar itself, in its Home Assistant
+settings.
+
+## Pairing and tokens
+
+Home Assistant pairs with a bar by asking it for an access token and keeps
+only that; the bar keeps a hash. The token is listed on the bar as `HA` and
+the name of this Home Assistant. If it is deleted there, or the bar is reset,
+Home Assistant shows a "Reconnect" notification and asks for the bar's access
+key again, keeping the device, its entities and your automations.
+
+The token only matters when the HTTP API is set to ask for a key. With the
+API open to everyone on the network the bar does not check tokens, and
+deleting one disconnects nothing. Over USB no token is needed at all.
 
 ## Development
 

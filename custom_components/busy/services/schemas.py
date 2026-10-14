@@ -86,9 +86,11 @@ DRAW = TARGET.extend(
         vol.Optional("duration", default=DEFAULT_DURATION): _DURATION,
         vol.Optional("interrupt", default=False): cv.boolean,
         vol.Optional("led_color"): _COLOUR,
-        # Drawing again under one name replaces what it drew, and `clear`
-        # can take the name to remove that one piece.
-        vol.Optional("name", default="draw"): cv.matches_regex(r"^[a-zA-Z0-9._-]+$"),
+        # Drawing again under one name replaces what it drew. Left out it is
+        # `draw_front` or `draw_back`: the bar keeps one id for the whole
+        # application, so one default name for both displays made a drawing
+        # on the back refused while the front held one.
+        vol.Optional("name"): cv.matches_regex(r"^[a-zA-Z0-9._-]+$"),
     }
 )
 

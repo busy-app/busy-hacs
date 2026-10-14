@@ -1,12 +1,16 @@
 """The BUSY Bar integration."""
 
+from functools import partial
 import logging
 
-from busylib.exceptions import BusyBarError
-from homeassistant.const import CONF_DEVICE_ID, CONF_TOKEN, Platform
+from busylib import AsyncBusyBar
+from busylib.exceptions import BusyBarAPIError, BusyBarError
+from busylib.transports import AiohttpTransport
+from homeassistant.const import CONF_DEVICE_ID, CONF_HOST, CONF_TOKEN, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
 from .connection import async_connect
@@ -56,9 +60,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: BusyBarConfigEntry) -> b
     client = await async_connect(hass, entry, device_id, entry.data[CONF_TOKEN])
     try:
         await client.access_tokens_list()
-    except BusyBarError:
+    except BusyBarAPIError as err:
         await client.aclose()
-        raise ConfigEntryAuthFailed(translation_key="access_unauthorized")
+        if err.status_code in (401, 403):
+            raise ConfigEntryAuthFailed(
+                translation_domain=DOMAIN, translation_key="access_unauthorized"
+            ) from err
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN, translation_key="device_unreachable"
+        ) from err
+    except BusyBarError as err:
+        # A bar that did not answer has not refused anything.
+        await client.aclose()
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN, translation_key="device_unreachable"
+        ) from err
 
     coordinator = BusyBarCoordinator(hass, client, device_id)
     try:
@@ -80,3 +96,32 @@ async def async_unload_entry(hass: HomeAssistant, entry: BusyBarConfigEntry) -> 
         await entry.runtime_data.stop_stream()
         await entry.runtime_data.client.aclose()
     return unloaded
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: BusyBarConfigEntry) -> None:
+    """
+    Take Home Assistant's token off the bar when the bar is taken out of it.
+
+    A token can revoke itself, and nothing else would ever: it would sit in
+    the bar's list for good. Best effort and no scan - a bar that is gone, off
+    or on firmware without the call keeps the token, which is harmless and
+    can be deleted on the bar itself.
+    """
+    host, token = entry.data.get(CONF_HOST), entry.data.get(CONF_TOKEN)
+    if not host or not token:
+        return
+    client = await hass.async_add_executor_job(
+        partial(
+            AsyncBusyBar,
+            host,
+            token=token,
+            transport=AiohttpTransport(async_get_clientsession(hass)),
+        )
+    )
+    try:
+        # A token's short id is its first eight characters.
+        await client.access_tokens_revoke(token[:8])
+    except (BusyBarError, OSError) as err:
+        _LOGGER.debug("could not revoke the token of %s: %s", host, err)
+    finally:
+        await client.aclose()
