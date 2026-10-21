@@ -26,6 +26,14 @@ they update, so they are written for them, not for us.
 ### Fixed
 - What used to go wrong, from the user's side. (#124)
 
+<details>
+<summary>All changes</summary>
+
+(the "What's Changed" and "New Contributors" sections from
+`--generate-notes`, as generated)
+
+</details>
+
 **Full changelog:** https://github.com/busy-app/busy-hacs/compare/1.0.0...1.1.0
 ```
 
@@ -34,7 +42,9 @@ they update, so they are written for them, not for us.
 - Every item links the PR it came from.
 - Breaking changes go first, with what to do: a renamed action, a removed
   entity, a raised minimum Home Assistant or busylib version.
-- Leave out what users never see: CI, tests, refactors, dev dependencies.
+- Leave out what users never see: CI, tests, refactors, dev dependencies -
+  they stay in the generated list under "All changes", which is kept as it
+  is, credits to new contributors included.
 - English, short. No emoji in headings.
 - A first release, or one that changes what the integration is, may open with
   a short paragraph on what it does before the sections.
