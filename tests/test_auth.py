@@ -20,6 +20,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_TOKEN
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers.update_coordinator import UpdateFailed
 import pytest
 
 from custom_components.busy.const import DOMAIN
@@ -275,6 +276,76 @@ async def test_any_other_error_from_the_poll_is_just_a_bar_that_is_unavailable(
     await hass.async_block_till_done()
 
     assert hass.config_entries.flow.async_progress() == []
+
+
+async def test_a_bar_started_with_its_api_off_is_waited_for_not_re_paired(
+    hass, prod_entry, bars, busy_network, quiet_snapshot
+) -> None:
+    """
+    The 403 that a deleted token gets is also what everything gets with the
+    HTTP API off. Asking for a new token there left the entry broken after
+    the API came back, with the old token still on the bar (PD-692).
+    """
+    bars[PROD_HOST] = FakeBar(mode="disabled")
+    prod_entry.add_to_hass(hass)
+
+    assert not await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert prod_entry.state is ConfigEntryState.SETUP_RETRY
+    assert hass.config_entries.flow.async_progress() == []
+
+
+async def test_the_api_turned_off_while_running_comes_back_by_itself(
+    hass, prod_entry, bars, busy_network, quiet_snapshot
+) -> None:
+    bar = bars[PROD_HOST] = FakeBar()
+    prod_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator = prod_entry.runtime_data
+
+    async def switch() -> Any:
+        if bar.mode == "disabled":
+            raise BusyBarAPIError("Forbidden", status_code=403)
+        return MagicMock(state=False)
+
+    bar.smart_home_switch = switch  # type: ignore[method-assign]
+    bar.mode = "disabled"
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    # Not ConfigEntryAuthFailed: that one stops the polls, and nothing would
+    # notice the API coming back.
+    assert isinstance(coordinator.last_exception, UpdateFailed)
+    assert hass.config_entries.flow.async_progress() == []
+
+    bar.mode = "enabled"
+    await coordinator.async_refresh()
+
+    assert coordinator.last_update_success
+
+
+async def test_a_refusal_from_a_bar_that_cannot_say_its_mode_is_not_the_token(
+    hass, prod_entry, bars, busy_network, quiet_snapshot
+) -> None:
+    bar = bars[PROD_HOST] = FakeBar()
+    prod_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(prod_entry.entry_id)
+    await hass.async_block_till_done()
+
+    async def refused() -> None:
+        raise BusyBarAPIError("Forbidden", status_code=403)
+
+    async def silent() -> None:
+        raise BusyBarRequestError("timed out", method="GET", path="/api/access")
+
+    bar.smart_home_switch = refused  # type: ignore[method-assign]
+    bar.access = silent  # type: ignore[method-assign]
+    await prod_entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+
+    assert isinstance(prod_entry.runtime_data.last_exception, UpdateFailed)
 
 
 # Taking the bar out ---------------------------------------------------------------

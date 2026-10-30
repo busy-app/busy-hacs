@@ -84,6 +84,27 @@ class BusyBarData:
     cards: dict[str, types.BusyProfile] = field(default_factory=dict)
 
 
+async def token_refused(client: AsyncBusyBar, err: BusyBarError) -> bool:
+    """
+    Whether an error means the bar no longer takes our token.
+
+    A bar answers a deleted token and its HTTP API turned off over Wi-Fi with
+    the same 403, but it still answers `/api/access` with the API off, and
+    says `disabled` there. Only a refusal from a bar that says it is open or
+    behind a key is the token: the other one comes back by itself once the
+    API is on again, and asking for a new token would only leave the old one
+    behind on the bar.
+    """
+    if not (isinstance(err, BusyBarAPIError) and err.status_code in (401, 403)):
+        return False
+    try:
+        mode = (await client.access()).mode
+    except BusyBarError, ValueError:
+        # A bar that cannot say is waited for, not paired again.
+        return False
+    return mode in ("enabled", "key")
+
+
 class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
     """Keeps one bar's state current, from the stream and a slow poll."""
 
@@ -121,9 +142,9 @@ class BusyBarCoordinator(DataUpdateCoordinator[BusyBarData]):
                 for slot in ("busy", "custom")
             }
         except BusyBarError as err:
-            if isinstance(err, BusyBarAPIError) and err.status_code in (401, 403):
-                # The bar answered and said no: its token was deleted, or the
-                # bar was reset. Home Assistant asks for a new one itself.
+            if await token_refused(self.client, err):
+                # The token was deleted, or the bar was reset. Home Assistant
+                # asks for a new one itself.
                 raise ConfigEntryAuthFailed(
                     translation_domain=DOMAIN, translation_key="access_unauthorized"
                 ) from err
