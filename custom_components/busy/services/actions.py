@@ -105,10 +105,14 @@ def _optional(value: str | None) -> str | None:
     return None if value in (None, "none") else value
 
 
+# Above third-party scripts and the bar's own Clock and Weather (busylib's
+# PRIORITY_DEFAULT, 50), below the calendar (80) and ON CALL. Interrupting
+# stays busylib's PRIORITY_INTERRUPT (91). The order: PD-693.
+DRAW_PRIORITY = 60
+
+
 def _priority(interrupt: bool) -> int:
-    return (
-        notification.PRIORITY_INTERRUPT if interrupt else notification.PRIORITY_DEFAULT
-    )
+    return notification.PRIORITY_INTERRUPT if interrupt else DRAW_PRIORITY
 
 
 async def _resolve(coordinator: BusyBarCoordinator, kind: str, name: str):
