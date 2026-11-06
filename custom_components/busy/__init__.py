@@ -4,7 +4,7 @@ from functools import partial
 import logging
 
 from busylib import AsyncBusyBar
-from busylib.exceptions import BusyBarAPIError, BusyBarError
+from busylib.exceptions import BusyBarError
 from busylib.transports import AiohttpTransport
 from homeassistant.const import CONF_DEVICE_ID, CONF_HOST, CONF_TOKEN, Platform
 from homeassistant.core import HomeAssistant
@@ -15,7 +15,7 @@ from homeassistant.helpers.typing import ConfigType
 
 from .connection import async_connect
 from .const import DOMAIN
-from .coordinator import BusyBarConfigEntry, BusyBarCoordinator
+from .coordinator import BusyBarConfigEntry, BusyBarCoordinator, token_refused
 from .frontend import async_offer_the_card
 from .services import async_register_services
 
@@ -60,18 +60,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: BusyBarConfigEntry) -> b
     client = await async_connect(hass, entry, device_id, entry.data[CONF_TOKEN])
     try:
         await client.access_tokens_list()
-    except BusyBarAPIError as err:
+    except BusyBarError as err:
+        refused = await token_refused(client, err)
         await client.aclose()
-        if err.status_code in (401, 403):
+        if refused:
             raise ConfigEntryAuthFailed(
                 translation_domain=DOMAIN, translation_key="access_unauthorized"
             ) from err
-        raise ConfigEntryNotReady(
-            translation_domain=DOMAIN, translation_key="device_unreachable"
-        ) from err
-    except BusyBarError as err:
-        # A bar that did not answer has not refused anything.
-        await client.aclose()
+        # A bar that did not answer, or has its HTTP API off, has not refused
+        # anything: it is tried again.
         raise ConfigEntryNotReady(
             translation_domain=DOMAIN, translation_key="device_unreachable"
         ) from err
