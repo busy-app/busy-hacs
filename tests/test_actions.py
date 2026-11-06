@@ -166,8 +166,15 @@ async def test_a_drawing_says_where_it_goes_and_survives_until_cleared(
     assert (element.text, element.font, element.display) == ("ON AIR", "bold", "back")
     assert (element.align, element.id, element.timeout) == ("center", "on_air", 0)
     assert payload.led_notification_color is not None
-    # Ordinary priority: shouting over other applications is asked for by name.
-    assert payload.priority == 50
+    # Ordinary priority, above Clock and Weather but below the calendar:
+    # shouting over other applications is asked for by name.
+    assert payload.priority == 60
+
+
+async def test_interrupting_is_drawn_above_everything_but_a_session(act, bar) -> None:
+    await act("draw", text="FIRE DRILL", interrupt=True)
+
+    assert bar.drawn[-1].priority == 91
 
 
 @pytest.mark.parametrize(
